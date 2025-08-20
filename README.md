@@ -1,1 +1,42 @@
-# lda
+# Luminex Data analysis (LDA)
+
+Welcome to the Luminex data analysis app. This app is designed to help you analyse your Luminex data. Please upload your data using the file upload button on the left. You can upload multiple files at once. Once you have uploaded your data, you can use the tabs on the top of the app to visualise and process your data.
+
+Please read before updating the code for this app.
+
+The Shiny website can be found on https://jodyphelan.shinyapps.io/luminex/
+
+
+# What does the app do?
+1. Standard Curves
+2. Variation
+  a. Coefficient of variation plota
+  b. Levey-Jennings plots
+
+
+*Definitions of each function*
+ui = user interface object controls the layout and appearance of your app
+server = function contains the instructions that your computer needs to build your app
+page_sidebar = function to create a page with a sidebar
+fluidpage = Functions for creating fluid page layouts. A fluid page layout consists of rows which in turn include columns
+hr() = Inserts a horizontal line (a divider in the UI)
+h5("") = adds level 5 heading
+p() = adds paragraph
+
+reactive({}) = R expression that uses widget input and returns a value. The reactive expression will update this value whenever the original widget changes.
+- saves its result the first time you run it.
+- The next time the reactive expression is called, it checks if the saved value has become out of date (i.e., whether the widgets it depends on have changed).
+- If the value is out of date, the reactive object will recalculate it (and then save the new result).
+- If the value is up-to-date, the reactive expression will return the saved value without doing any computation
+
+# What to do before updating the code
+1. Ensure that your R (different from RStudio) is up to date
+
+**Required packages**
+install.packages("coneproj")
+install.packages("cgam")
+install.packages("shinyFiles")
+install.packages("plotly")
+install.packages("plyr")
+install.packages("mixtools")
+install.packages("nls2")

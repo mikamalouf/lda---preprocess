@@ -2,6 +2,8 @@ library(shiny)
 library(shinyFiles)
 library(plotly)
 library(glue)
+install.packages("cgam")
+
 # Define UI ----
 # Define UI for random distribution app ----
 
@@ -10,34 +12,51 @@ upload_tab_ui<-function(){
         "Upload", 
         sidebarLayout(
             sidebarPanel("", width=3,
-                h5("Dilutions"),
-                p(
-                    textOutput("dilutions"),
-                    textInput(inputId = "dilutionInput",label=""),
-                    actionButton("dilutionButton","Submit dilutions")
-                ),
-                hr(),
-                h5("File upload"),
-                p("Upload your data using the file upload button below."),
-                p(
-                    fileInput(
-                        inputId = "fileUpload",
-                        label = "",
-                        multiple = TRUE,
-                        buttonLabel = "Browse...",
-                        placeholder = "No file selected"
-                    )
-                ),
-                hr(),
-                h5("Background adjustment"),
-                p(
-                    "Check this box if you want to adjust for background. This takes",
-                    "the mean of all background readings for all plates for each antigen",
-                    "in turn, and subtracts this from all other readings for that antigen"
-                ),
-                checkboxInput("background_adjustment", "Adjust for background", value = FALSE)
-
-            ),
+                
+                         # Add level 5 header for Dilutions
+                         h5("Dilutions"),
+                         
+                         # Adds a paragraph of text under the heading
+                         p(
+                           textOutput("dilutions"),
+                           textInput(inputId = "dilutionInput",label=""),
+                           actionButton("dilutionButton","Submit dilutions")
+                           ),
+                         
+                         # Inserts a horizontal line (a divider in the UI)
+                         hr(),
+                         
+                         # Add level 5 header for File Upload
+                         h5("File upload"),
+                         
+                         # Adds text
+                         p("Upload your data using the file upload button below."),
+                         p(
+                           fileInput(
+                             inputId = "fileUpload",
+                             label = "",
+                             multiple = TRUE,
+                             buttonLabel = "Browse...",
+                             placeholder = "No file selected"
+                             )),
+                         
+                         # Inserts a horizontal line (a divider in the UI)
+                         hr(),
+                         
+                         # Add level 5 header for Background adjustment
+                         h5("Background adjustment"),
+                         
+                         # Adds a paragraph of text under the heading
+                         p(
+                           "Check this box if you want to adjust for background. This takes",
+                           "the mean of all background readings for all plates for each antigen",
+                           "in turn, and subtracts this from all other readings for that antigen"
+                           ),
+                         
+                         checkboxInput("background_adjustment", "Adjust for background", value = FALSE) # subtraction. do the same with division
+                         
+                         ),
+            
             mainPanel(
                 fluidRow(
                     column(12, align="center",
@@ -51,18 +70,24 @@ upload_tab_ui<-function(){
                         ),
                     ),
                 ),
+                
+                # Adds a paragraph of text under the heading
                 p(
-                    "Welcome to the Luminex data analysis app. This app is designed",
-                    "to help you analyse your Luminex data. Please upload your data",
-                    "using the file upload button on the left. You can upload multiple",
-                    "files at once. Once you have uploaded your data, you can use the",
-                    "tabs on the top of the app to visualise and process your data."
+                    "Welcome to the Luminex data analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please upload your data using the file upload button on the left. You can upload multiple",
+                    "files at once. Once you have uploaded your data, you can use the tabs on the top of the app to visualise and process your data."
                 ),
+                
+                # Inserts a horizontal line (a divider in the UI)
                 hr(),
+                
+                
                 h5("Upload summary"),
+                
+                # Adds text under the heading
                 p(
                     tableOutput("upload_summary")
                 ),
+                
                 fluidRow(
                     column(6,
                         tableOutput("plate_table")
@@ -79,7 +104,7 @@ upload_tab_ui<-function(){
       )
 }
 
-std_curve_plots_ui<-function(){
+std_curve_plots_ui <- function(){
 
     
     tabPanel("Standard Curves", 
@@ -100,7 +125,7 @@ std_curve_plots_ui<-function(){
 
 }
 
-levy_jennings_plots_ui<-function()(
+levey_jennings_plots_ui <- function()(
 
     tabPanel("Variation", 
         sidebarLayout(
@@ -110,25 +135,25 @@ levy_jennings_plots_ui<-function()(
                     "in a plate. It is calculated as the standard deviation divided by the mean."
                 ),
                 p(
-                    "The Levy Jennings plot is a plot shows the median MFI for each antigen and",
+                    "The Levey-Jennings plot is a plot shows the median MFI for each antigen and",
                     "plate. The lines indicate 1 and 2 standard deviations from the mean.",
                     "This plot can be used to identify antigens that are not performing well."
                 ),
                 hr(),
-                h5("Levy Jennings controls"),
-                uiOutput("levy_jennings_select_points")
+                h5("Levey-Jennings controls"),
+                uiOutput("levey_jennings_select_points")
             ),
             mainPanel(
                 h4("Coefficient of variation plots"),
                 uiOutput("coefv_plots"),
-                h4("Levy Jennings plots"),
-                uiOutput("levy_jennings_plots")
+                h4("Levey-Jennings plots"),
+                uiOutput("levey_jennings_plots")
             )
         )
     )
 )
 
-normalisation_ui<-function(){
+normalisation_ui <- function(){
     tabPanel("Normalisation", 
         sidebarLayout(
             sidebarPanel("", width=3,
@@ -162,7 +187,7 @@ normalisation_ui<-function(){
     )
 }
 
-loess_ui<-function(){
+loess_ui <- function(){
     tabPanel("Loess", 
         sidebarLayout(
             sidebarPanel("", width=3,
@@ -229,7 +254,7 @@ ui <- fluidPage(
       type = "tabs",
       upload_tab_ui(),
       std_curve_plots_ui(),
-      levy_jennings_plots_ui(),
+      levey_jennings_plots_ui(),
       normalisation_ui(),
       loess_ui()
     )
@@ -240,89 +265,129 @@ ui <- fluidPage(
 
 # Define server logic ----
 
-parse_dilution_string<-function(input){
+parse_dilution_string <- function(input){
     trimws(unlist(strsplit(trimws(input),",")))
 }
   
 server <- function(input, output, session) {
+  
+  # Read in functions
     source("luminex_dx_functions_v11.R")
     source("normalisation_functions.R")
-    dilutions <- c("1/31250", "1/6250", "1/1250", "1/250", "1/50", "1/10")
-    output$dilutions<-renderText(paste("The dilutions are set to",paste(dilutions,collapse=", "),". You can update this here."))
+  
+  # Set up dilutions
+  
+    # Defines a default set of dilutions
+    dilutions <- c("1/31250", "1/6250", "1/1250", "1/1000", "1/250", "1/50", "1/10", "1/1")
+    
+    output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
+    
+    # Update dilutions interactively (flexibility)
     observeEvent(input$dilutionButton, {
+        
+        # Reads user input (dilutionInput) and parses it into a proper format
         dilutions <- parse_dilution_string(input$dilutionInput)
-        output$dilutions<-renderText(paste("The dilutions are set to",paste(dilutions,collapse=", "),". You can update this here."))
+        output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
     })
     
-    d<-reactive({
-        raw_data_path<-dirname(input$fileUpload[1,"datapath"])
-
-        plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
-        d = list()
-        d$rawdatapath<-raw_data_path
-        d$uploadedfilenumber<-nrow(input$fileUpload)
-        d$plates<-read.batch(path=raw_data_path)
-        names(d$plates)<-plate_lab
-        d$platenames<-names(d$plates)
-        d$numplates<-length(d$platenames)
-        d$combinedplates<-join.plates(d$plates)
-        d$ags<-colnames(d$combinedplates)[3:ncol(d$combinedplates)]
+    # File upload and data preparation
+    d <- reactive({
+      
+      # Make sure a file has been uploaded
+      req(input$fileUpload)
+      
+      # Extract the folder path and the file label, drop .csv extension
+      raw_data_path <- dirname(input$fileUpload[1,"datapath"])
+      plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
+      
+      # Reading uploaded data
+      d = list()
+      d$rawdatapath <- raw_data_path
+      d$uploadedfilenumber <- nrow(input$fileUpload)
+      ## Load batch data from the uploaded files
+      d$plates<-read.batch(path=raw_data_path)
+      ## Assign user-friendly names to the plates
+      names(d$plates)<-plate_lab
+      
+      # Join plates
+        ## Store metadata: plate names, number of plates
+        d$platenames <- names(d$plates)
+        d$numplates <- length(d$platenames)
+      
+        ## Combine plates into one dataset
+        d$combinedplates <- join.plates(d$plates)
+        
+        ## Extracts antigen names (columns 3 onward = data columns)
+        d$ags <- colnames(d$combinedplates)[3:ncol(d$combinedplates)]
+      
+        ## Metadata with dates - include date & plate info
         d$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)
         d$combineddatesplates <- join.plates(d$datesplates)
         d
     })
 
-    ag<-reactive({
+    # Create a reactive that extracts antigen column names from the uploaded data for app use
+    ag <- reactive({
         colnames(d()$plates[[1]])[3:ncol(d()$plates[[1]])]
     })
 
-    nd<-reactive({
+    # Normalisation
+    nd <- reactive({
         # ag_list <- colnames(d()$plates[[1]])[3:ncol(d()$plates[[1]])]
         progress <- Progress$new(session, min=1, max=d()$numplates)
         on.exit(progress$close())
 
         progress$set(message = 'Calculation in progress',
                     detail = 'This may take a while...')
+        
+        # Use normalise_plates function
         normalise_plates(
             all_plates = d()$plates,
             dilutions = dilutions,
             ag_list = ag(),
             fit_type = input$fitting_function,
-            progress = progress
-        )
+            progress = progress )
     })
 
-    ld<-reactive({
+    # Loess adjustment - apply loess regression across plates to smooth out systematic plate-to-plate variation
+    ld <- reactive({
+        
+        # reference plate selected by the user
         req(input$loess_ref_plate)
+      
         progress <- Progress$new(session, min=1, max=d()$numplates)
         on.exit(progress$close())
 
         progress$set(message = 'Calculation in progress',
                     detail = 'This may take a while...')
 
-        d<-loess_adjustment(
+        d <- loess_adjustment(
             all_plates = d()$plates,
             fitted_data = nd()$data,
             ref_plate = input$loess_ref_plate,
             ag_list = ag(),
             progress = progress
         )
-        d$data<-lapply(d$data, as.data.frame)
+        d$data <- lapply(d$data, as.data.frame)
         d
     })
 
+    # Upload summary: number of files, number of plates, antigens
     output$upload_summary<- renderText({
         if (!is.null(input$fileUpload)){
-            paste(d()$uploadedfilenumber,"files were uploaded, leading to", d()$numplates,"plates being loaded with the following plates and antigens:")
+            paste(d()$uploadedfilenumber,"files were uploaded, leading to ", d()$numplates," plates being loaded with the following plates and antigens:")
         } else {
             "Please upload a file using the upload button on the left sidebar."
         }
     })
 
+    # Tables of antigen names
     output$antigen_table<-renderTable({
         req(input$fileUpload)
         data.frame(Antigens=d()$ags)
     })
+    
+    # Tables of plate names
     output$plate_table<-renderTable({
         req(input$fileUpload)
         data.frame(Plates=d()$platenames)
@@ -333,6 +398,7 @@ server <- function(input, output, session) {
         downloadButton("download_combined", "Download normalised dataset")
     })
 
+    # After normalisation and adjustment, allows the user to download the final dataset as normdata.csv
     output$download_combined <- downloadHandler(
         
         filename = function() {
@@ -355,8 +421,7 @@ server <- function(input, output, session) {
         tagList(
             selectInput("ref_plate", "Reference plate", d()$platenames),
             selectInput("standard_plate", "Reference plate", d()$platenames),
-            selectInput("selected_ag", "Select antigen", d()$ags)
-        )
+            selectInput("selected_ag", "Select antigen", d()$ags) )
     })
 
     output$normControls <- renderUI({
@@ -364,8 +429,7 @@ server <- function(input, output, session) {
         tagList(
             selectInput("fitting_function","Select fitting function",c("poly","nls","kernsmooth","cgam")),
             renderText("fitting_function_text"),
-            selectInput("norm_plot_plate", "Select plate to visualise", d()$platenames),
-        )
+            selectInput("norm_plot_plate", "Select plate to visualise", d()$platenames), )
     })
 
     output$fitting_function_text <- renderText({
@@ -389,10 +453,8 @@ server <- function(input, output, session) {
                 label = "Select reference plate",
                 choices = d()$platenames,
                 options = list(
-                    onInitialize = I('function() { this.setValue(""); }')
-                )
-            )
-        )
+                    onInitialize = I('function() { this.setValue(""); }') )
+            ) )
     })
 
     output$loessControls2 <- renderUI({
@@ -401,60 +463,60 @@ server <- function(input, output, session) {
             selectizeInput(
                 inputId = "loess_plot_plate",
                 label = "Select plate to visualise",
-                choices = d()$platenames
-            )
-        )
+                choices = d()$platenames) )
     })
 
-    output$std_curves<-renderUI({
+    # Standard Curves
+    output$std_curves <- renderUI({
         req(input$fileUpload)
         fluidRow(
             lapply(ag(),function(antigen){
                 id <- paste0("plot_std_", antigen)
                 plotOutput(outputId = id)
                 std_curves <- lapply(d()$platenames, function(x) {
-                    get.standard(
+                  
+                  # Generates interactive standard curve per antigen and plate  
+                  get.standard(
                         data = d()$plates[[x]],
                         std_label = "CP3",
                         dilutions = dilutions,
-                        n_points = 6
-                    )
+                        n_points = 6 )
                 })
                 names(std_curves) <- d()$platenames
 
                 column(6,
                     renderPlotly({
+                        # Generates interactive standard curve plots per antigen and plate
                         plot.std.curve3_interactive(
                             data = std_curves,
                             antigen = antigen,
                             dilutions = dilutions,
-                            plate_labels = input$std_curve_input
-                        )
-                    })
-                )
-            })
-        )
+                            plate_labels = input$std_curve_input )
+                    }) )
+            }) )
     })
 
-    output$std_curve_plate_selection<-renderUI({
+    # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
+    output$std_curve_plate_selection <- renderUI({
         selectizeInput(
             inputId="std_curve_input",
             label="Select plates (max 5)",
             choices=d()$platenames,
             selected = NULL,
             multiple=TRUE,
-            options = list(maxItems = 5)
-        )
+            options = list(maxItems = 5) ) # Can remove this if we want unlimited plate selection
     })
 
-    output$levy_jennings_select_points <- renderUI({
+    # QC
+    ## Levey-Jennings controls for tracking high, mid, and low dilution points across plates
+    output$levey_jennings_select_points <- renderUI({
         tagList(
-            selectInput("levy_high", "Select high dilution", dilutions, selected="1/10"),
-            selectInput("levy_mid", "Select mid dilution", dilutions, selected="1/50"),
-            selectInput("levy_low", "Select low dilution", dilutions,selected="1/250")
-        )
+            selectInput("levey_high", "Select high dilution", dilutions, selected="1/10"),
+            selectInput("levey_mid", "Select mid dilution", dilutions, selected="1/50"),
+            selectInput("levey_low", "Select low dilution", dilutions,selected="1/250") )
     })
 
+    ## Plots coefficient of variation across dilutions to see consistency of replicates
     output$coefv_plots <- renderUI({
         req(input$fileUpload)
         fluidRow(
@@ -465,10 +527,8 @@ server <- function(input, output, session) {
                         ag(),
                         std_label = "CP3",
                         dilutions=dilutions,
-                        target_dilution = "1/250"
-                    )
-                })
-            ),
+                        target_dilution = "1/250" ) 
+                })  ),
             column(12,
                 renderPlotly({
                     plot.coefv(
@@ -476,46 +536,46 @@ server <- function(input, output, session) {
                         ag(),
                         std_label = "CP3",
                         dilutions=dilutions,
-                        target_dilution = "1/1250"
-                    )
-                })
-            )
-        )
-    })
+                        target_dilution = "1/1250" )
+                }) )
+        ) })
 
-    output$levy_jennings_plots <- renderUI({
+    ## Generate Levey-Jennings plots for each antigen
+    output$levey_jennings_plots <- renderUI({
         req(input$fileUpload)
         fluidRow(
             lapply(ag(), function(antigen) {
                 column(6,
                     renderPlot({
-                        levy.jennings(
+                        levey.jennings(
                             data = d()$combineddatesplates,
                             std_label = "CP3",
                             blank_label = "Background0",
-                            dil_high = input$levy_high,
-                            dil_mid = input$levy_mid,
-                            dil_low = input$levy_low,
+                            dil_high = input$levey_high,
+                            dil_mid = input$levey_mid,
+                            dil_low = input$levey_low,
                             by_var = "plate",
-                            ag_list = c(antigen)
-                        )
-                })
-                )
-            })
-        )
+                            ag_list = c(antigen) )
+                }) )
+            }) )
     })
 
+    # Plate Visualisation
     output$plate_plan<-renderPlot({
+      
+        # Generates plate maps with antigen-specific data
         plate_data <- view.plate.data(data=d()$plates[[input$ref_plate]],antigen=input$selected_ag)
         plot.plate(data1=plate_data$sample.data,antigen=input$selected_ag)
-
-
+        
     })
     
+    # Normalised Data & Plots
+    ## Shows normalised matrix
     output$normalised_matrix<-renderTable({
         nd()$data[["MP01"]]
     })
-
+    
+    ## Produces normalisation diagnostic plots per antigen and plate
     output$normalisation_plots <- renderUI({
         req(input$fileUpload)
         fluidRow(
@@ -524,12 +584,11 @@ server <- function(input, output, session) {
                     renderPlot({
                         nd()$plots[[input$norm_plot_plate]][[a]]
 
-                    })
-                )
-            })
-        )
+                    }) )
+            }) )
     })
 
+    # Loess Adjustment Visualisation - Compares raw vs loess-adjusted plots for each antigen and plate
     output$loess_ag_plot <- renderUI({
         req(input$fileUpload)
         fluidRow(
@@ -537,15 +596,16 @@ server <- function(input, output, session) {
                 column(6,
                     renderPlot({
                         par(mfrow=c(1,2))
+
+                        # Compares raw vs loess-adjusted antigen plots
                         plot.ag.plates.raw(data=d()$plates, ag=a, dilutions=dilutions)
                         plot.ag.plates.raw(data=ld()$data, ag=a, dilutions=dilutions)
                         par(mfrow=c(1,1))
-                    })
-                )
-            })
-        )
+                    }) )
+            }) )
     })
 
+    # Loess-adjusted diagnostic plots
     output$loess_plots <- renderUI({
         req(input$fileUpload)
         req(input$loess_ref_plate)
@@ -555,21 +615,14 @@ server <- function(input, output, session) {
                     renderPlot({
                         ld()$plots[[input$loess_plot_plate]][[a]]
 
-                    })
-                )
-            })
-        )
+                    }) )
+            }) )
     })
 
-
-    output$loess_data<-renderTable({
+    # Display loess-adjusted dataset as a table
+    output$loess_data <- renderTable({
         ld()$data[[1]]
-    })
-
-
-
-
-}
+    })}
   
 
 

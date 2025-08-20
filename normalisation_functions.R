@@ -2,6 +2,12 @@
 library(KernSmooth)
 library(cgam)
 
+
+
+
+
+
+
 get_fit<-function(std,conc,type){
     max <- max(std[which(is.finite(std))])
 
@@ -77,7 +83,8 @@ get_conc<-function(dilutions){
     sapply(strsplit(dilutions, split = "/"),
                         function(x) as.numeric(x[1]) / as.numeric(x[2]))
 }
-normalise_plates<-function(all_plates,dilutions,ag_list,fit_type,progress){
+
+normalise_plates <- function(all_plates,dilutions,ag_list,fit_type,progress){
     fitted.data<-list()
     plots<-list()
     for (k in 1:length(all_plates)) {

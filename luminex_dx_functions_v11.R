@@ -935,10 +935,10 @@ plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
 }
 
 ###################################
-#### "levy.jennings" function ###
+#### "levey.jennings" function ###
 ###################################
 
-levy.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
+levey.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
 
   is.wholenumber <-
     function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) < tol
@@ -1571,7 +1571,7 @@ ag.column.add <- function(data,ag_mismatch) {
 ##########################
 #### "cutoff" function ###
 ##########################
-# calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI
+# calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI using normalmixEM
 
 cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_label=NULL,no_sd=2,print=F) {
   
