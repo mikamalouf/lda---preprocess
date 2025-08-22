@@ -9,12 +9,12 @@ The Shiny website can be found on https://jodyphelan.shinyapps.io/luminex/
 
 # What does the app do?
 1. Standard Curves
-2. Variation
+2. Variation <br />
   a. Coefficient of variation plots <br />
   b. Levey-Jennings plots <br />
 
 
-**Definitions of each function**
+**Definitions of each function** <br />
 *ui* = user interface object controls the layout and appearance of your app <br />
 *server* = function contains the instructions that your computer needs to build your app <br />
 *page_sidebar* = function to create a page with a sidebar <br /> 
@@ -31,8 +31,9 @@ reactive({}) = R expression that uses widget input and returns a value. The reac
 
 # What to do before updating the code
 1. Ensure that your R (different from RStudio) is up to date
+2. Install required packages <br />
 
-**Required packages**
+**Required packages** <br />
 install.packages("coneproj") <br />
 install.packages("cgam") <br />
 install.packages("shinyFiles") <br />

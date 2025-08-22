@@ -159,7 +159,7 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
 # Checks if bead counts fall below a specified threshold by antigen
 # Prints list of samples per antigen
 
-bead.check <- function(data,min=50,ag_list) {
+bead.check <- function(data, min=50, ag_list) {
   
   for (i in ag_list) {
       

@@ -14,46 +14,65 @@ upload_tab_ui<-function(){
             sidebarPanel("", width=3,
                 
                          # Add level 5 header for Dilutions
-                         h5("Dilutions"),
-                         
-                         # Adds a paragraph of text under the heading
-                         p(
-                           textOutput("dilutions"),
-                           textInput(inputId = "dilutionInput",label=""),
-                           actionButton("dilutionButton","Submit dilutions")
-                           ),
-                         
-                         # Inserts a horizontal line (a divider in the UI)
-                         hr(),
+                         h5(strong("Dilutions")),
+                           
+                           # Adds a paragraph of text under the heading
+                           p(
+                             textOutput("dilutions"),
+                             textInput(inputId = "dilutionInput",label=""),
+                             actionButton("dilutionButton","Submit dilutions")
+                             ),
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
                          
                          # Add level 5 header for File Upload
-                         h5("File upload"),
-                         
-                         # Adds text
-                         p("Upload your data using the file upload button below."),
-                         p(
-                           fileInput(
-                             inputId = "fileUpload",
-                             label = "",
-                             multiple = TRUE,
-                             buttonLabel = "Browse...",
-                             placeholder = "No file selected"
-                             )),
-                         
-                         # Inserts a horizontal line (a divider in the UI)
-                         hr(),
+                         h5(strong("File upload")),
+                           
+                           # Adds text
+                           p("Upload your data using the file upload button below."),
+                           p(
+                             fileInput(
+                               inputId = "fileUpload",
+                               label = "",
+                               multiple = TRUE,
+                               buttonLabel = "Browse...",
+                               placeholder = "No file selected"
+                               )),
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
                          
                          # Add level 5 header for Background adjustment
-                         h5("Background adjustment"),
+                         h5(strong("Background adjustment")),
                          
-                         # Adds a paragraph of text under the heading
-                         p(
-                           "Check this box if you want to adjust for background. This takes",
-                           "the mean of all background readings for all plates for each antigen",
-                           "in turn, and subtracts this from all other readings for that antigen"
+                           # Adds a paragraph of text under the heading
+                           p(
+                             "Check this box if you want to adjust for background. This takes",
+                             "the mean of all background readings for all plates for each antigen",
+                             "in turn, and subtracts this from all other readings for that antigen"
+                             ),
+                           
+                           checkboxInput("background_adjustment", "Adjust for background", value = FALSE), # subtraction. do the same with division
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
+                         
+                         # Add level 5 header for Bead threshold
+                         h5(strong("Bead count threshold")),
+                         
+                           # Adds text
+                           p("Please add the minimum number beads required to proceed with analysis (usually 30 to 50)"),
+                           
+                           # Adds a paragraph of text under the heading
+                           p(
+                             textOutput("lowbead"),
+                             textInput(inputId = "lowbeadInput",label=""),
+                             actionButton("beadButton","Submit low bead count threshold")
                            ),
-                         
-                         checkboxInput("background_adjustment", "Adjust for background", value = FALSE) # subtraction. do the same with division
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
                          
                          ),
             
