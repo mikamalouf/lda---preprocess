@@ -10,18 +10,18 @@ The Shiny website can be found on https://jodyphelan.shinyapps.io/luminex/
 # What does the app do?
 1. Standard Curves
 2. Variation
-<  a. Coefficient of variation plota>
-<  b. Levey-Jennings plots>
+  a. Coefficient of variation plots <br />
+  b. Levey-Jennings plots <br />
 
 
 **Definitions of each function**
-<*ui* = user interface object controls the layout and appearance of your app>
-<*server* = function contains the instructions that your computer needs to build your app>
-<*page_sidebar* = function to create a page with a sidebar>
-<*fluidpage* = Functions for creating fluid page layouts. A fluid page layout consists of rows which in turn include columns>
-<*hr()* = Inserts a horizontal line (a divider in the UI)>
-<*h5("")* = adds level 5 heading>
-<*p()* = adds paragraph>
+*ui* = user interface object controls the layout and appearance of your app <br />
+*server* = function contains the instructions that your computer needs to build your app <br />
+*page_sidebar* = function to create a page with a sidebar <br /> 
+*fluidpage* = Functions for creating fluid page layouts. A fluid page layout consists of rows which in turn include columns <br />
+*hr()* = Inserts a horizontal line (a divider in the UI) <br />
+*h5("")* = adds level 5 heading <br />
+*p()* = adds paragraph <br />
 
 reactive({}) = R expression that uses widget input and returns a value. The reactive expression will update this value whenever the original widget changes.
 - saves its result the first time you run it.
@@ -33,10 +33,10 @@ reactive({}) = R expression that uses widget input and returns a value. The reac
 1. Ensure that your R (different from RStudio) is up to date
 
 **Required packages**
-<install.packages("coneproj")>
-<install.packages("cgam")>
-<install.packages("shinyFiles")>
-<install.packages("plotly")>
-<install.packages("plyr")>
-<install.packages("mixtools")>
-<install.packages("nls2")>
+install.packages("coneproj") <br />
+install.packages("cgam") <br />
+install.packages("shinyFiles") <br />
+install.packages("plotly") <br />
+install.packages("plyr") <br />
+install.packages("mixtools") <br />
+install.packages("nls2") <br />
