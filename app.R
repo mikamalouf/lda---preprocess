@@ -74,6 +74,25 @@ upload_tab_ui<-function(){
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
                          
+                         # Add level 5 header for Background removal
+                         h5(strong("Background removal")),
+                           
+                           # Adds text
+                           p("Please select how you would like to remove the background MFI"),
+                           
+                           # Adds a paragraph of text under the heading
+                           p(
+                             radioButtons(
+                               inputId = "backgroundremoval",
+                               label = "Choose one option:",
+                               choices = c("Subtract", "Divide"),
+                               selected = "Subtract"  # default choice
+                             )
+                           ),
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
+                         
                          ),
             
             mainPanel(
