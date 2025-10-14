@@ -141,7 +141,7 @@ bead_count_ui <- function() {
                           
                           # User input for bead threshold
                           numericInput(inputId = "bead_threshold",
-                                       label = "Please enter minimum bead count: ",
+                                       label = "Please enter a minimum bead count: ",
                                        value = 30, # default
                                        min = 0),
                           
@@ -162,8 +162,8 @@ bead_count_ui <- function() {
                           
                           checkboxInput("bead_adjustment", "Remove low beads", value = FALSE)
              ),
-             mainPanel(plotOutput("bead_count_plots"))
-           ))
+             mainPanel(plotOutput("bead_count_plots", width = "100%", height = "1200px")))
+           )
 }
 
 
@@ -408,12 +408,35 @@ server <- function(input, output, session) {
       bead_data$uploadedfilenumber <- nrow(input$fileUpload)
       
       ## Load batch data from the uploaded files
-      bead_data$plates <- read.batch.beads(path=raw_data_path)
+      bead_data$plates <- read.batch.beads(path = raw_data_path)
       
       ## Assign user-friendly names to the plates
-      names(bead_data$plates)<-plate_lab
+      names(bead_data$plates) <- plate_lab
+      
+      # Join plates
+      ## Store metadata: plate names, number of plates
+      bead_data$platenames <- names(bead_data$plates)
+      bead_data$numplates <- length(bead_data$platenames)
+      
+      ## Combine plates into one dataset
+      bead_data$combinedplates <- join.plates(bead_data$plates)
+      
+      ## Skip NAs
+      bead_data$combinedplates <- na.omit(bead_data$combinedplates)
+      for (i in seq_along(bead_data$plates)){
+        bead_data$plates[[i]] <- na.omit(bead_data$plates[[i]])
+      }
+      
+      ## Extracts antigen names (columns 3 onward = data columns)
+      bead_data$ags <- colnames(bead_data$combinedplates)[3:ncol(bead_data$combinedplates)]
+      
+      ## Metadata with dates - include date & plate info
+      bead_data$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)
+      bead_data$combineddatesplates <- join.plates(bead_data$datesplates)
+      bead_data
       })
 
+  
     # Create a reactive that extracts antigen column names from the uploaded data for app use
     ag <- reactive({
         colnames(d()$plates[[1]])[3:ncol(d()$plates[[1]])]

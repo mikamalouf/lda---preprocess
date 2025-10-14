@@ -7,6 +7,7 @@ require(scales)
 library(RColorBrewer)
 library(plotly)
 library(lubridate)
+library(tidyr)
 
 split_to_list<-function(input,size){
   containers<-list()
@@ -862,42 +863,36 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
   setwd(path)
   temp <- list.files(pattern="*.csv")
-  plate_lab <- basename(temp) |> sub(".csv$", "", .)
+  plate_lab <- substr(temp,1,nchar(temp)-4)
   plate <- list()
   
-  for (i in seq_along(temp)) {
-    raw <- read.csv(temp[i], stringsAsFactors = FALSE)
+  for(i in 1:length(temp)) { 
     
-    # Identify where Count section starts
-    count_start <- grep("DataType", raw[,1])[1]
-    count_table <- read.csv(temp[i], skip = count_start)  # includes DataType row
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
     
-    # Filter rows where DataType == "Count"
-    count_only <- count_table[count_table$DataType == "Count", ]
+    section1 <- grep("Count",plate[[i]]$Sample)[1]
+    section2 <- grep("Avg Net MFI",plate[[i]]$Sample)
     
-    # Rename "Location" to "Well"
-    if ("Location" %in% names(count_only)) {
-      count_only <- count_only %>% dplyr::rename(Well = Location)
+    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
+    
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
     }
     
-    # Drop metadata columns like "DataType" and "Total Events"
-    count_only <- count_only %>% select(-DataType, -`Total Events`)
+    if (inc_plate==T) plate[[i]]$plate <- i
     
-    # Convert antigen columns to numeric
-    count_only[, sapply(count_only, is.character)] <- lapply(count_only[, sapply(count_only, is.character)], as.numeric)
-    
-    # Append metadata
-    if (inc_plate) count_only$plate <- plate_lab[i]
-    if (inc_date) {
-      date_val <- raw[grep("Date", raw[,1]), 2]
-      count_only$date <- as.Date(date_val, format = "%m/%d/%Y")
-    }
-    
-    plate[[i]] <- count_only
   }
   
   names(plate) <- plate_lab
+  
   return(plate)
+  
 }
 
 plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
@@ -910,20 +905,32 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
     }
   }
   
+  # Remove Total Events
+  if("Total.Events" %in% names(plate_data)) {
+      plate_data <- plate_data %>% 
+        select(-c(Total.Events))
+    } 
+  
+  ## Convert to long format to plot
   bead_data <- plate_data %>%
-    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount") %>%
-    filter("Antigen" != "Total Events")
+    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount")
   
   bead_data$below_threshold <- bead_data$BeadCount < threshold
   
+  ## Plot
   ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
-    geom_line(aes(color = Antigen)) +
-    geom_point(aes(shape = below_threshold)) +
+    geom_line() +
+    geom_point(aes(color = below_threshold), size = 2) +
+    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
     geom_hline(yintercept = threshold, linetype = "dashed") +
     labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
     theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    facet_wrap(~Antigen, scales = "free_y")
+    theme(strip.text = element_text(size=20), 
+          axis.text.y = element_text(size=15), 
+          axis.text.x = element_text(angle = 45, hjust = 1), 
+          axis.title = element_text(size = 15), 
+          plot.title  = element_text(size = 20, face = "bold")) +
+    facet_wrap(~Antigen, scales = "free_y", ncol = 2)
 }
 
 ### ### ### ### ### ### ### ### ### #
