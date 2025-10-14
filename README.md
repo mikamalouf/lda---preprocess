@@ -29,6 +29,15 @@ reactive({}) = R expression that uses widget input and returns a value. The reac
 - If the value is out of date, the reactive object will recalculate it (and then save the new result).
 - If the value is up-to-date, the reactive expression will return the saved value without doing any computation
 
+
+# File format
+1. Make sure that the date in the file is m/d/y <br />
+2. The file upload must be a csv file <br />
+3. Dilutions must be in order from highest to lowest concentration <br />
+4. Dilutions must be in the format "1/100", not "100" or "1:100" or "0.01" <br />
+
+
+
 # What to do before updating the code
 1. Ensure that your R (different from RStudio) is up to date
 2. Install required packages <br />
@@ -41,3 +50,5 @@ install.packages("plotly") <br />
 install.packages("plyr") <br />
 install.packages("mixtools") <br />
 install.packages("nls2") <br />
+install.packages("lubridate")
+install.packages("rsconnect")

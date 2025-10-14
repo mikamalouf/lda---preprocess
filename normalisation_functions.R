@@ -1,10 +1,5 @@
-
 library(KernSmooth)
 library(cgam)
-
-
-
-
 
 
 
@@ -27,7 +22,6 @@ get_fit<-function(std,conc,type){
     
     if (type=="cgam"){
         fit<-cgam(MFI ~ 1+s.incr(conc,numknots=4), data=fit.data, family=gaussian)
-        x1 <- seq(min(fit.data$conc),max(fit.data$conc),length=100)
         y1 <-predict.cgam(fit,newData = data.frame(conc=x1))$fit
     } else if (type=="kernsmooth"){
         fit <- locpoly(
@@ -91,7 +85,7 @@ normalise_plates <- function(all_plates,dilutions,ag_list,fit_type,progress){
 
         plate_lab <- names(all_plates)[k]
         
-        standards <- get.standard(all_plates[[k]],std_label="CP3",dilutions,n_points=length(dilutions))
+        standards <- get.standard(all_plates[[k]], std_label = "(?i)CP3|Std Curve", dilutions, n_points=length(dilutions))
         
         fit.mat <- as.data.frame(matrix(ncol=length(ag_list)+1,nrow=100))
         fit.mat[,1] <- seq(1,100,1)
@@ -140,7 +134,7 @@ loess_adjustment<-function(all_plates,fitted_data,ref_plate,ag_list,progress){
         print(plate_lab)
         plate_fit <- fit.mat_clean[[plate_lab]]
 
-        h1_raw <- all_plates[[plate_lab]]#[-grep("CP3",all_plates[[plate_lab]][,"Sample"]),]
+        h1_raw <- all_plates[[plate_lab]] #[-grep("CP3",all_plates[[plate_lab]][,"Sample"]),]
         h1_raw <-  h1_raw[-grep("Background0", h1_raw$Sample),]
         idx<- grep("NEG", h1_raw$Sample)
         if (length(idx)>0){
@@ -201,7 +195,7 @@ loess_adjustment<-function(all_plates,fitted_data,ref_plate,ag_list,progress){
 plot.ag.plates.raw <- function(data, ag, dilutions) {
     conc<-get_conc(dilutions)
     tmp <- as.data.frame(sapply(names(data),function(p){
-        as.numeric(get.standard(data[[p]],std_label="CP3",dilutions,n_points=length(dilutions))[[ag]][1:5])
+        as.numeric(get.standard(data[[p]], std_label = "(?i)CP3|Std Curve", dilutions, n_points=length(dilutions))[[ag]][1:5])
     }))
     conc<-conc[1:nrow(tmp)]
     print(tmp)

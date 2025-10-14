@@ -6,6 +6,7 @@ require(mixtools)
 require(scales)
 library(RColorBrewer)
 library(plotly)
+library(lubridate)
 
 split_to_list<-function(input,size){
   containers<-list()
@@ -20,62 +21,17 @@ split_to_list<-function(input,size){
 }
 
 
-###############################
-#### "read.plate" function ####
-###############################
+### ### ### ### ### ### ### ### #
+##### "read.batch" function #####
+### ### ### ### ### ### ### ### #
 
-# Reads raw csv file from XPonent software
+# Reads raw csv file from xPONENT software
 # Removes header rows
 # Keeps only median MFI values
 # Removes last column "Total.Events"
 # Ensures all MFI values are in numeric format
 
-read.plate <- function (path,file_name,inc_date=F) {
-
-  data_raw <-  read.csv(paste0(path,file_name))
-  startrow <- grep("DataType",data_raw[,1])[1]
-  data <- read.csv(paste0(path,file_name), skip=startrow+1)
-  
-  section <- grep("1,",data$Location, invert=T)[1]
-  
-  data <- data[1:(section-1),-ncol(data)]
-  
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
-  
-  if (inc_date==T) {
-    data$date <- data_raw[grep("Date",data_raw[,1]),2]
-    data$date <- as.Date(data$date,"%m/%d/%Y")
-  }
-  
-  return(data)
-
-}
-
-read.plate.beads <- function (path,file_name,inc_date=F) {
-  
-  data_raw <-  read.csv(paste0(path,file_name))
-  startrow <- grep("DataType",data_raw[,1])[1]
-  data <- read.csv(paste0(path,file_name), skip=startrow+1)
-  
-  section1 <- grep("Count",data$Sample)[1]
-  section2 <- grep("Avg Net MFI",data$Sample)
-  
-  data <- data[(section1+2):(section2-2),-ncol(data)]
-  
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
-  
-  if (inc_date==T) {
-    data$date <- data_raw[grep("Date",data_raw[,1]),2]
-    data$date <- as.Date(data$date,"%m/%d/%Y")
-  }
-  
-  return(data)
-  
-}
-
-read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
+read.batch <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
 
   setwd(path)
   temp <- list.files(pattern="*.csv")
@@ -95,8 +51,8 @@ read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
     plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
 
     if (inc_date==T) {
-      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
-      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+      # This line of code reads in the date, but uses the package lubridate to make the date format ok with multiple date types as long as it is m/d/y
+      plate[[i]]$date <- lubridate::mdy(plate_raw[grep("Date", plate_raw[,1]), 2])
     }
     
     if (inc_plate==T) plate[[i]]$plate <- i
@@ -115,51 +71,16 @@ read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
   
 }
 
-read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
-  
-  setwd(path)
-  temp <- list.files(pattern="*.csv")
-  plate_lab <- substr(temp,1,nchar(temp)-4)
-  plate <- list()
-  
-  for(i in 1:length(temp)) { 
-    
-    plate_raw <- read.csv(temp[i])
-    startrow <- grep("DataType",plate_raw[,1])[1]
-    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
-    
-    section1 <- grep("Count",plate[[i]]$Sample)[1]
-    section2 <- grep("Avg Net MFI",plate[[i]]$Sample)
-    
-    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
-    
-    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
-    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
-    
-    plate_raw <- read.csv(temp[i])
-    
-    if (inc_date==T) {
-      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
-      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
-    }
-    
-    if (inc_plate==T) plate[[i]]$plate <- i
-    
-  }
-  
-  names(plate) <- plate_lab
-  
-  return(plate)
-  
-}
 
-###############################
-#### "bead.check" function ####
-###############################
+
+### ### ### ### ### ### ### ### #
+##### "bead.check" function #####
+### ### ### ### ### ### ### ### #
+
 # Checks if bead counts fall below a specified threshold by antigen
 # Prints list of samples per antigen
 
-bead.check <- function(data, min=50, ag_list) {
+bead.check <- function(data, min=30, ag_list) {
   
   for (i in ag_list) {
       
@@ -182,10 +103,11 @@ bead.check <- function(data, min=50, ag_list) {
   
 }
 
-################################
-#### "join.plates" function ####
-################################
-## Binds all plates into a single object
+### ### ### ### ### ### ### ### ##
+##### "join.plates" function #####
+### ### ### ### ### ### ### ### ##
+
+# Binds all plates into a single object
 
 join.plates <- function(plates,exc_blank=F) {
   
@@ -205,9 +127,9 @@ join.plates <- function(plates,exc_blank=F) {
   
 }
 
-#################################
-#### "blank.adjust" function ####
-#################################
+### ### ### ### ### ### ### ### ###
+##### "blank.adjust" function #####
+### ### ### ### ### ### ### ### ###
 
 # Calculates mean MFI values for "blank" samples for each antigen
 # Subtracts mean blank value from samples MFI values
@@ -290,9 +212,10 @@ blank.adjust.batch <- function(plates,blank_label) {
   
 }
 
-################################
-#### "exclude" function ####
-################################
+### ### ### ### ### ### ### ##
+##### "exclude" function #####
+### ### ### ### ### ### ### ##
+
 ## removes blank, neg or pos control entries from dataset
 
 exclude <- function(data,blank_label=NULL,neg_label=NULL,std_label=NULL) {
@@ -305,13 +228,13 @@ exclude <- function(data,blank_label=NULL,neg_label=NULL,std_label=NULL) {
 
 }
 
-#################################
-#### "get.standard" function ####
-#################################
+### ### ### ### ### ### ### ### ###
+##### "get.standard" function #####
+### ### ### ### ### ### ### ### ###
 
 # Saves only the data for the standard curve samples to a data object - used for other functions
 
-get.standard <- function(data,std_label,dilutions,n_points){
+get.standard <- function(data,std_label = "(?i)CP3|Std Curve",dilutions,n_points){
   
   std <- data[grep(std_label, data$Sample)[n_points:1],]
   
@@ -333,9 +256,9 @@ get.standard <- function(data,std_label,dilutions,n_points){
   
 }  
 
-###################################
-#### "plot.std.curve" function ####
-###################################
+### ### ### ### ### ### ### ### ### #
+##### "plot.std.curve" function #####
+### ### ### ### ### ### ### ### ### #
 
 # Plots standard curve for 1 antigen
 
@@ -403,8 +326,8 @@ plot.std.curve1 <- function(data,plotfile="plot1.pdf",antigen,dilutions,ref_curv
 
 }
 
-# Plots standard curve for multiple antigens in 3x3 matrix
 
+# Plots standard curve for multiple antigens in 3x3 matrix
 plot.std.curve2 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,ref_curve,path=getwd(),ref_label="Reference",plate_label="Plate") {
   
   if (save_file==T) {
@@ -487,10 +410,10 @@ plot.std.curve2 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,sav
   }
 }
 
+
+
 # Plots standard curve for multiple plates (up to 5) and multiple antigens in 3x3 matrix
-
-# data list of standards from multiple plates (maximum is 5 at a time)
-
+  # data list of standards from multiple plates (maximum is 5 at a time)
 plot.std.curve3 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,path=getwd(),negs=NULL,blanks=NULL,plate_labels=NULL) {
   
   if (save_file==T) {
@@ -641,10 +564,10 @@ plot.std.curve3_single_ag <- function(data,antigen,dilutions,negs=NULL,blanks=NU
     }
 }
 
-################################################
-#### "plot.std.curve3_interactive" function ####
-################################################
 
+### ### ### ### ### ### ### ### ### ### ### ### ##
+##### "plot.std.curve3_interactive" function #####
+### ### ### ### ### ### ### ### ### ### ### ### ##
 
 plot.std.curve3_interactive <- function(data,antigen,dilutions,negs=NULL,blanks=NULL,plate_labels=NULL) {
   curves <- list()
@@ -685,26 +608,25 @@ plot.std.curve3_interactive <- function(data,antigen,dilutions,negs=NULL,blanks=
   
 }
 
-################################
-####### "coefv" function #######
-################################
+### ### ### ### ### ### ### #
+##### "coefv" function #####
+### ### ### ### ### ### ### #
 
-coefv<-function(data,antigens,std_label,dilutions,target_dilution){
+coefv<-function(data, antigens, std_label = "(?i)CP3|Std Curve", dilutions, target_dilution){
   sapply(antigens,function(a){
     d<-sapply(names(data),function(p){
-      tmp<-get.standard(data[[p]],"CP3",dilutions = dilutions,n_points = 6) 
-      idx<-which(grepl("^CP3",tmp$Sample) & grepl(paste0(target_dilution,"$"),tmp$Sample))
-      tmp[idx,a]  
+      tmp<-get.standard(data[[p]],std_label = std_label,dilutions = dilutions,n_points = 6)
+      idx < -which(grepl(std_label, tmp$Sample) & grepl(paste0(target_dilution,"$"),tmp$Sample))
+      tmp[idx,a]
     })
     sd(d)/mean(d)
-    
   })
-  
 }
 
-################################
-####### "plot.coefv" function #######
-################################
+
+### ### ### ### ### ### ### ### #
+##### "plot.coefv" function #####
+### ### ### ### ### ### ### ### #
 
 plot.coefv<-function(data,antigens,std_label,dilutions,target_dilution){
   vals<-coefv(data,antigens,std_label,dilutions,target_dilution)
@@ -724,14 +646,12 @@ plot.coefv<-function(data,antigens,std_label,dilutions,target_dilution){
     )
   )
 
-  # axis(1,at=1:length(vals),labels=names(vals),cex.axis=0.8)
-  
 }
 
-  
-####################################
-#### "view.plate.data" function ####
-####################################
+
+### ### ### ### ### ### ### ### ### ##
+##### "view.plate.data" function #####
+### ### ### ### ### ### ### ### ### ##
 
 view.plate.data <- function(data,antigen) {
   
@@ -774,9 +694,9 @@ view.plate.data <- function(data,antigen) {
   
 }
 
-###################################
-#### "normalise.conc" function ####
-###################################
+### ### ### ### ### ### ### ### ### #
+##### "normalise.conc" function #####
+### ### ### ### ### ### ### ### ### #
 
 norm.conc <- function(data,dilutions,standards,ag_list,plot=F,path=getwd(),filename="data_conc.csv") {
 
@@ -888,9 +808,9 @@ norm.conc <- function(data,dilutions,standards,ag_list,plot=F,path=getwd(),filen
   
 }
 
-#########################################
-#### "normalise.conc.batch" function ####
-#########################################
+### ### ### ### ### ### ### ### ### ### ###
+##### "normalise.conc.batch" function #####
+### ### ### ### ### ### ### ### ### ### ###
 
 norm.conc.batch <- function(data_batch,standards_batch,ag_list,dilutions,plot=F,plate_label) {
   
@@ -914,9 +834,10 @@ norm.conc.batch <- function(data_batch,standards_batch,ag_list,dilutions,plot=F,
   
 }
 
-###############################
-#### "plot.plate" function ####
-###############################
+
+### ### ### ### ### ### ### ### #
+##### "plot.plate" function #####
+### ### ### ### ### ### ### ### #
 
 plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
   
@@ -934,9 +855,80 @@ plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
 
 }
 
-###################################
-#### "levey.jennings" function ###
-###################################
+### ### ### ### ### ### ### ### ### ##
+##### "plot_bead_count" function #####
+### ### ### ### ### ### ### ### ### ##
+read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- basename(temp) |> sub(".csv$", "", .)
+  plate <- list()
+  
+  for (i in seq_along(temp)) {
+    raw <- read.csv(temp[i], stringsAsFactors = FALSE)
+    
+    # Identify where Count section starts
+    count_start <- grep("DataType", raw[,1])[1]
+    count_table <- read.csv(temp[i], skip = count_start)  # includes DataType row
+    
+    # Filter rows where DataType == "Count"
+    count_only <- count_table[count_table$DataType == "Count", ]
+    
+    # Rename "Location" to "Well"
+    if ("Location" %in% names(count_only)) {
+      count_only <- count_only %>% dplyr::rename(Well = Location)
+    }
+    
+    # Drop metadata columns like "DataType" and "Total Events"
+    count_only <- count_only %>% select(-DataType, -`Total Events`)
+    
+    # Convert antigen columns to numeric
+    count_only[, sapply(count_only, is.character)] <- lapply(count_only[, sapply(count_only, is.character)], as.numeric)
+    
+    # Append metadata
+    if (inc_plate) count_only$plate <- plate_lab[i]
+    if (inc_date) {
+      date_val <- raw[grep("Date", raw[,1]), 2]
+      count_only$date <- as.Date(date_val, format = "%m/%d/%Y")
+    }
+    
+    plate[[i]] <- count_only
+  }
+  
+  names(plate) <- plate_lab
+  return(plate)
+}
+
+plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
+  # Standardize column name
+  if (!"Well" %in% names(plate_data)) {
+    if ("Location" %in% names(plate_data)) {
+      plate_data <- plate_data %>% dplyr::rename(Well = Location)
+    } else {
+      stop("No 'Well' or 'Location' column found in plate_data")
+    }
+  }
+  
+  bead_data <- plate_data %>%
+    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount") %>%
+    filter("Antigen" != "Total Events")
+  
+  bead_data$below_threshold <- bead_data$BeadCount < threshold
+  
+  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+    geom_line(aes(color = Antigen)) +
+    geom_point(aes(shape = below_threshold)) +
+    geom_hline(yintercept = threshold, linetype = "dashed") +
+    labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    facet_wrap(~Antigen, scales = "free_y")
+}
+
+### ### ### ### ### ### ### ### ### #
+##### "levey.jennings" function #####
+### ### ### ### ### ### ### ### ### #
 
 levey.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
 
@@ -1246,10 +1238,11 @@ levey.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,
     }
   }
 }
-  
-###################################
-#### "normalise.loess" function ###
-###################################
+
+
+### ### ### ### ### ### ### ### ### ##
+##### "normalise.loess" function #####
+### ### ### ### ### ### ### ### ### ##
 
 norm.loess <- function (data,dilutions,ag_list,ref_fit,plate_fit,plot_fit=F,lm=F,path=NULL,file_name=NULL,plate_label) {
 
@@ -1370,9 +1363,10 @@ norm.loess <- function (data,dilutions,ag_list,ref_fit,plate_fit,plot_fit=F,lm=F
 
 }
 
-###################################
-#### "normalise.frac" function ###
-###################################
+
+### ### ### ### ### ### ### ### ### #
+##### "normalise.frac" function #####
+### ### ### ### ### ### ### ### ### #
 
 norm.frac <- function (data,std_label,ag_list,path=NULL) {
  
@@ -1444,9 +1438,9 @@ norm.frac <- function (data,std_label,ag_list,path=NULL) {
   
 }
 
-##############################
-#### "plate2list" function ###
-##############################
+### ### ### ### ### ### ### ### #
+##### "plate2list" function #####
+### ### ### ### ### ### ### ### #
 
 # converting plate plans to importable sample id lists and vice versa
 # appends sample IDs by column in descending rows (i.e., A1-H1, A2-H2 etc)
@@ -1479,9 +1473,10 @@ plate2list <- function(data,no_plates,names=NULL,path){
   
 }
 
-###################################
-#### "ag column print" function ###
-###################################
+
+### ### ### ### ### ### ### ### ### ##
+##### "ag column print" function #####
+### ### ### ### ### ### ### ### ### ##
 
 ag.col.print <- function(data) {
   
@@ -1494,9 +1489,10 @@ ag.col.print <- function(data) {
   
 }
 
-######################################
-#### "ag column mismatch" function ###
-######################################
+
+### ### ### ### ### ### ### ### ### ### #
+##### "ag column mismatch" function #####
+### ### ### ### ### ### ### ### ### ### #
 
 ag.match.check <- function(data, plateprint=F) {
 
@@ -1546,9 +1542,11 @@ ag.match.check <- function(data, plateprint=F) {
 
 }
 
-######################################
-#### "ag column add" function ###
-######################################
+
+### ### ### ### ### ### ### ### ### 
+##### "ag column add" function #####
+### ### ### ### ### ### ### ### ### 
+
 # add missing columns to plate after ag.match.check function is run
 
 ag.column.add <- function(data,ag_mismatch) {
@@ -1568,10 +1566,62 @@ ag.column.add <- function(data,ag_mismatch) {
 }
 
 
-##########################
-#### "cutoff" function ###
-##########################
-# calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI using normalmixEM
+
+### ### ### ### ### ### ### 
+##### Unused functions #####
+### ### ### ### ### ### ### 
+read.plate <- function (path,file_name,inc_date=F) {
+  
+  data_raw <-  read.csv(paste0(path,file_name))
+  startrow <- grep("DataType",data_raw[,1])[1]
+  data <- read.csv(paste0(path,file_name), skip=startrow+1)
+  
+  section <- grep("1,",data$Location, invert=T)[1]
+  
+  data <- data[1:(section-1),-ncol(data)]
+  
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
+  
+  if (inc_date==T) {
+    data$date <- data_raw[grep("Date",data_raw[,1]),2]
+    data$date <- as.Date(data$date,"%m/%d/%Y")
+  }
+  
+  return(data)
+  
+}
+
+read.plate.beads <- function (path,file_name,inc_date=F) {
+  
+  data_raw <-  read.csv(paste0(path,file_name))
+  startrow <- grep("DataType",data_raw[,1])[1]
+  data <- read.csv(paste0(path,file_name), skip=startrow+1)
+  
+  section1 <- grep("Count",data$Sample)[1]
+  section2 <- grep("Avg Net MFI",data$Sample)
+  
+  data <- data[(section1+2):(section2-2),-ncol(data)]
+  
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
+  
+  if (inc_date==T) {
+    data$date <- data_raw[grep("Date",data_raw[,1]),2]
+    data$date <- as.Date(data$date,"%m/%d/%Y")
+  }
+  
+  return(data)
+  
+}
+
+
+
+
+
+
+# "cutoff" function
+  # calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI using normalmixEM
 
 cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_label=NULL,no_sd=2,print=F) {
   
@@ -1612,9 +1662,9 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
       blank.data <- blanks[,i]
       blank.mean <- mean(blank.data)
     }
-     
+    
     labels1 <- as.numeric(c(10,100,1000,10000,100000))
-
+    
     print("MFI")
     fit <- normalmixEM(na.omit(plot.data),2)
     
@@ -1671,8 +1721,8 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
     if(is.null(neg_label)==F&is.null(blank_label)==F) {
       
       legend("topleft",c(paste0("cutoff (MFI): ",round(cut,0)),paste0("neg ctrls: ",round(neg.mean,0)),
-                        paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
-           col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
+                         paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
+             col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
     } else {
       
       legend("topleft",paste0("cutoff (MFI): ",round(cut,0)),lty=1,col="red",cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5,text.col="red")
@@ -1691,10 +1741,10 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
     lines(log(plot_x),gauss2b,col="dodgerblue4")
     
     if(is.null(neg_label)==F&is.null(blank_label)==F) {
-    
+      
       legend("topleft",c(paste0("cutoff (MFI): ",round(exp(log_cut),0)),paste0("neg ctrls: ",round(neg.mean,0)),
-      paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
-      col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
+                         paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
+             col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
       
     } else {
       
@@ -1711,18 +1761,17 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
   
 }
 
-##########################
-#### "seropos" function ##
-##########################
-# Using the cutoff values calculated in cutoff function
-# Assigns seropositivity values for all antigens and adds to an existing dataframe
+
+# "seropos" function
+  # Using the cutoff values calculated in cutoff function
+  # Assigns seropositivity values for all antigens and adds to an existing dataframe
 
 seropos <- function(data,cutoffs,ag_list) {
   
   new_data <- data
   
   for (i in ag_list) {
-  
+    
     var_new1 <- paste0(i,"_pos") 
     #var_new2 <- paste0(i,"_poslog") 
     
@@ -1733,7 +1782,7 @@ seropos <- function(data,cutoffs,ag_list) {
     #new_data[,var_new2] <- NA
     #new_data[,var_new2][new_data[,i]>=cutoffs[[2]][[i]]]  <- 1
     #new_data[,var_new2][new_data[,i]<cutoffs[[2]][[i]]]  <- 0
-  
+    
   }
   
   return(new_data)
