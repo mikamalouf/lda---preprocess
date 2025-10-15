@@ -856,9 +856,9 @@ plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
 
 }
 
-### ### ### ### ### ### ### ### ### ##
-##### "plot_bead_count" function #####
-### ### ### ### ### ### ### ### ### ##
+### ### ### ### ### ### ### ### ### ###
+##### "read.batch.beads" function #####
+### ### ### ### ### ### ### ### ### ###
 read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
   setwd(path)
@@ -895,6 +895,10 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
 }
 
+
+### ### ### ### ### ### ### ### ### ### #
+##### "plot_beads_by_well" function #####
+### ### ### ### ### ### ### ### ### ### #
 plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
   # Standardize column name
   if (!"Well" %in% names(plate_data)) {
@@ -904,33 +908,45 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
       stop("No 'Well' or 'Location' column found in plate_data")
     }
   }
-  
-  # Remove Total Events
+
+  # Clean Location from 1(1,A1) -> 1
+  plate_data$Well <- sub(".*,(.*)\\).*", "\\1", plate_data$Well)
+
+  # Create vector of breaks (first well of each row)
+  x_breaks <- unique(sub("(.)\\d+", "\\11", plate_data$Well))
+
+  # Remove Total Events (if it is in the dataset)
   if("Total.Events" %in% names(plate_data)) {
-      plate_data <- plate_data %>% 
+      plate_data <- plate_data %>%
         select(-c(Total.Events))
-    } 
-  
+    }
+
   ## Convert to long format to plot
   bead_data <- plate_data %>%
     pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount")
-  
+
   bead_data$below_threshold <- bead_data$BeadCount < threshold
-  
+
   ## Plot
-  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+  bead_plot <- ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
     geom_line() +
     geom_point(aes(color = below_threshold), size = 2) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
     geom_hline(yintercept = threshold, linetype = "dashed") +
+    scale_x_discrete(breaks = x_breaks) +
     labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
     theme_minimal() +
-    theme(strip.text = element_text(size=20), 
-          axis.text.y = element_text(size=15), 
-          axis.text.x = element_text(angle = 45, hjust = 1), 
-          axis.title = element_text(size = 15), 
+    theme(strip.text = element_text(size=20),
+          axis.text.y = element_text(size=15),
+          axis.text.x = element_text(hjust = 1, size=15), # angle = 45 (makes the label tilted if needing to fit for size)
+          axis.title = element_text(size = 18),
           plot.title  = element_text(size = 20, face = "bold")) +
     facet_wrap(~Antigen, scales = "free_y", ncol = 2)
+
+  plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
+
+  return(plotly_obj)
+
 }
 
 ### ### ### ### ### ### ### ### ### #

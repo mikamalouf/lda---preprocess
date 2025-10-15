@@ -162,7 +162,7 @@ bead_count_ui <- function() {
                           
                           checkboxInput("bead_adjustment", "Remove low beads", value = FALSE)
              ),
-             mainPanel(plotOutput("bead_count_plots", width = "100%", height = "1200px")))
+             mainPanel(plotOutput("bead_count_plots", height = "1200px")))
            )
 }
 
@@ -299,6 +299,39 @@ loess_ui <- function(){
     )
 }
 
+
+download_data_ui <- function() {
+  
+  tabPanel("Download data",
+           sidebarLayout(
+             sidebarPanel(width=3,
+                         
+                          # Add description that this page is to adjust for data if happy. After all the steps if it looks good then download
+                          
+                          # Add level 5 header for Background adjustment
+                          h5(strong("Adjusting low bead count"), style = "font-size:120%"),
+                          
+                          # User input for bead threshold
+                          numericInput(inputId = "bead_threshold",
+                                       label = "Please enter a minimum bead count: ",
+                                       value = 30, # default
+                                       min = 0),
+                          
+                          # Adds a paragraph of text under the heading
+                          p("Check this box if you want to remove samples with a low bead count for the cleaned dataset",
+                            style = "font-size:120%"),
+                          
+                          checkboxInput("bead_adjustment", "Remove low beads", value = FALSE),
+                          
+                          # Inserts a horizontal line (a divider in the UI)
+                          hr()
+             ),
+             mainPanel()
+             )
+  )
+}
+
+
 ui <- fluidPage(
   
   # App title ----
@@ -315,7 +348,8 @@ ui <- fluidPage(
       std_curve_plots_ui(),
       levey_jennings_plots_ui(),
       normalisation_ui(),
-      loess_ui()
+      loess_ui(),
+      download_data_ui()
     )
     
 
@@ -613,7 +647,7 @@ server <- function(input, output, session) {
                   # Generates interactive standard curve per antigen and plate  
                   get.standard(
                         data = d()$plates[[x]],
-                        std_label = "(?i)CP3|Std Curve",
+                        std_label = "(?i)CP3|Std Curve|WHO", # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
                         dilutions = dilutions,
                         n_points <- length(dilutions))
                   })
