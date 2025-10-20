@@ -12,19 +12,6 @@ upload_tab_ui<-function(){
         "Upload", 
         sidebarLayout(
             sidebarPanel("", width=3,
-                
-                         # Add level 5 header for Dilutions
-                         h5(strong("Dilutions"), style = "font-size:120%"),
-                           
-                           # Adds a paragraph of text under the heading
-                           p(
-                             textOutput("dilutions"),
-                             textInput(inputId = "dilutionInput",label=""),
-                             actionButton("dilutionButton","Submit dilutions")
-                             ),
-                           
-                           # Inserts a horizontal line (a divider in the UI)
-                           hr(),
                          
                          # Add level 5 header for File Upload
                          h5(strong("File upload"), style = "font-size:120%"),
@@ -40,6 +27,32 @@ upload_tab_ui<-function(){
                                placeholder = "No file selected"
                                ), 
                              style = "font-size:120%"),
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
+                         
+                         # Add level 5 header for Dilutions
+                         h5(strong("Dilutions"), style = "font-size:120%"),
+                         
+                           # Adds a paragraph of text under the heading
+                           p(
+                             textOutput("dilutions"),
+                             textInput(inputId = "dilutionInput",label=""),
+                             actionButton("dilutionButton","Submit dilutions")
+                           ),
+                           
+                           # Inserts a horizontal line (a divider in the UI)
+                           hr(),
+                         
+                         # Add level 5 header for Standard curves
+                         h5(strong("Standard curve"), style = "font-size:120%"),
+                         
+                           # Adds a paragraph of text under the heading
+                           p(
+                             textOutput("std_label"),
+                             textInput(inputId = "std_labelInput",label=""),
+                             actionButton("std_labelButton","Submit standard curves")
+                           ),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
@@ -111,12 +124,14 @@ upload_tab_ui<-function(){
                 ),
                 
                 fluidRow(
-                    column(6,
+                    column(3,
                         tableOutput("plate_table")
                     ),
-                    column(6,
+                    column(3,
                         tableOutput("antigen_table")
-                    )
+                    ),
+                    column(3,
+                           tableOutput("sample_type_table"))
                 )
                 
                 
@@ -383,6 +398,19 @@ server <- function(input, output, session) {
         output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
     })
     
+    # Set up standard curves
+    std_label <- c("(?i)CP3|Std Curve|WHO")
+    
+    output$std_label <- renderText(paste("The default Standard Curves are set to", paste(std_label,collapse=", "),". If you have your own standard curves, then you can manually update this here. Please seperate the standard curves with a comma."))
+    
+    # Update std_label interactively (flexibility)
+    observeEvent(input$std_labelButton, {
+      
+      # Reads user input (std_labelInput) and parses it into a proper format
+      std_label <- parse_dilution_string(input$std_labelInput)
+      output$std_label <- renderText(paste("The standard curve labels are set to ", paste(std_label,collapse=", "),". You can update this here."))
+    })
+    
     # File upload and data preparation
     d <- reactive({
       
@@ -420,6 +448,12 @@ server <- function(input, output, session) {
         
         ## Extracts antigen names (columns 3 onward = data columns)
         d$ags <- colnames(d$combinedplates)[3:ncol(d$combinedplates)]
+        
+        ## Extracts all sample types (background and controls, not ppt sample)
+        d$sample_type <- colnames(d$combinedplates)[2]
+          
+          # Replace any cell containing "Unknown" (case-insensitive) with "Sample"
+          #d$sample_type <- ifelse(grepl("Unknown", d$sample_type, ignore.case = TRUE), "Sample", d$sample_type)
       
         ## Metadata with dates - include date & plate info
         d$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)
@@ -555,6 +589,12 @@ server <- function(input, output, session) {
         data.frame(Antigens=d()$ags)
     })
     
+    # Tables of Sample names
+    output$sample_type_table<-renderTable({
+      req(input$fileUpload)
+      data.frame(Sample=d()$sample_type)
+    })
+    
     # Tables of plate names
     output$plate_table<-renderTable({
         req(input$fileUpload)
@@ -647,7 +687,7 @@ server <- function(input, output, session) {
                   # Generates interactive standard curve per antigen and plate  
                   get.standard(
                         data = d()$plates[[x]],
-                        std_label = "(?i)CP3|Std Curve|WHO", # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
+                        std_label = std_label, # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
                         dilutions = dilutions,
                         n_points <- length(dilutions))
                   })
@@ -695,7 +735,7 @@ server <- function(input, output, session) {
                     plot.coefv(
                         data = d()$plates,
                         ag(),
-                        std_label = "(?i)CP3|Std Curve",
+                        std_label = std_label,
                         dilutions=dilutions,
                         target_dilution = "1/250" ) 
                 })  ),
@@ -704,7 +744,7 @@ server <- function(input, output, session) {
                     plot.coefv(
                         data = d()$plates,
                         ag(),
-                        std_label = "(?i)CP3|Std Curve",
+                        std_label = std_label,
                         dilutions=dilutions,
                         target_dilution = "1/1250" )
                 }) )
@@ -719,7 +759,7 @@ server <- function(input, output, session) {
                     renderPlot({
                         levey.jennings(
                             data = d()$combineddatesplates,
-                            std_label = "(?i)CP3|Std Curve",
+                            std_label = std_label,
                             blank_label = "Background0",
                             dil_high = input$levey_high,
                             dil_mid = input$levey_mid,

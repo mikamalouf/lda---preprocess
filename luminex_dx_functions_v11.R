@@ -74,6 +74,24 @@ read.batch <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
 
 
 
+read.batch.test <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+  }
+}
+
+
+
 ### ### ### ### ### ### ### ### #
 ##### "bead.check" function #####
 ### ### ### ### ### ### ### ### #
