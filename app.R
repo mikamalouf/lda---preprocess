@@ -17,7 +17,7 @@ upload_tab_ui<-function(){
                          h5(strong("File upload"), style = "font-size:120%"),
                            
                            # Adds text
-                           p("Upload your data using the file upload button below.", style = "font-size:120%"),
+                           p("Upload your data using the file upload button below. You can upload up to 5 files.", style = "font-size:120%"),
                            p(
                              fileInput(
                                inputId = "fileUpload",
@@ -163,19 +163,8 @@ bead_count_ui <- function() {
                           # Plate selection
                           selectInput(inputId = "plate_selection",
                                       label = "Select Plate:",
-                                      choices = NULL),  # we'll populate dynamically in server
-                          
-                          # Inserts a horizontal line (a divider in the UI)
-                          hr(),
-                          
-                          # Add level 5 header for Background adjustment
-                          h5(strong("Adjusting low bead count"), style = "font-size:120%"),
-                          
-                          # Adds a paragraph of text under the heading
-                          p("Check this box if you want to remove samples with a low bead count for the cleaned dataset",
-                            style = "font-size:120%"),
-                          
-                          checkboxInput("bead_adjustment", "Remove low beads", value = FALSE)
+                                      choices = NULL)  # we'll populate dynamically in server
+
              ),
              mainPanel(plotOutput("bead_count_plots", height = "1200px")))
            )
@@ -453,7 +442,7 @@ server <- function(input, output, session) {
         d$sample_type <- colnames(d$combinedplates)[2]
           
           # Replace any cell containing "Unknown" (case-insensitive) with "Sample"
-          #d$sample_type <- ifelse(grepl("Unknown", d$sample_type, ignore.case = TRUE), "Sample", d$sample_type)
+          d$sample_type <- ifelse(grepl("Unknown", d$sample_type, ignore.case = TRUE), "Sample", d$sample_type)[2]
       
         ## Metadata with dates - include date & plate info
         d$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)

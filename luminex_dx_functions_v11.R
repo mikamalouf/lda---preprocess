@@ -946,7 +946,7 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
   bead_data$below_threshold <- bead_data$BeadCount < threshold
 
   ## Plot
-  bead_plot <- ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
     geom_line() +
     geom_point(aes(color = below_threshold), size = 2) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
@@ -961,9 +961,9 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
           plot.title  = element_text(size = 20, face = "bold")) +
     facet_wrap(~Antigen, scales = "free_y", ncol = 2)
 
-  plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
-
-  return(plotly_obj)
+  # plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
+  # 
+  # return(plotly_obj)
 
 }
 
