@@ -2,7 +2,6 @@ library(KernSmooth)
 library(cgam)
 
 
-
 get_fit<-function(std,conc,type){
     max <- max(std[which(is.finite(std))])
 

@@ -13,11 +13,11 @@ upload_tab_ui<-function(){
         sidebarLayout(
             sidebarPanel("", width=3,
                          
-                         # Add level 5 header for File Upload
+                         # File Upload
                          h5(strong("File upload"), style = "font-size:120%"),
                            
                            # Adds text
-                           p("Upload your data using the file upload button below. You can upload up to 5 files.", style = "font-size:120%"),
+                           p("Upload your data using the file upload button below.", style = "font-size:120%"),
                            p(
                              fileInput(
                                inputId = "fileUpload",
@@ -31,19 +31,20 @@ upload_tab_ui<-function(){
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
                          
-                         # Add level 5 header for Dilutions
+                         # Dilutions
                          h5(strong("Dilutions"), style = "font-size:120%"),
                          
                            # Adds a paragraph of text under the heading
                            p(
                              textOutput("dilutions"),
                              textInput(inputId = "dilutionInput",label=""),
-                             actionButton("dilutionButton","Submit dilutions")
+                             actionButton("dilutionButton","Submit dilutions (comma seperated)")
                            ),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
-                         
+      
+      ### SEE IF YOU NEED THIS                                      
                          # Add level 5 header for Standard curves
                          h5(strong("Standard curve"), style = "font-size:120%"),
                          
@@ -56,7 +57,10 @@ upload_tab_ui<-function(){
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
-                         
+      #####
+      
+      
+      ### SEE IF YOU NEED THIS   
                          # Add level 5 header for Background adjustment
                          h5(strong("Background adjustment"), style = "font-size:120%"),
                          
@@ -71,6 +75,7 @@ upload_tab_ui<-function(){
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
+      
                          
                          # Add level 5 header for Background removal
                          h5(strong("Background removal"), style = "font-size:120%"),
@@ -92,7 +97,8 @@ upload_tab_ui<-function(){
                            hr(),
                          
                          ),
-            
+          #####
+      
             mainPanel(
                 fluidRow(
                     column(12, align="center",
@@ -111,6 +117,9 @@ upload_tab_ui<-function(){
                 p(
                     "Welcome to the Luminex data analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please upload your data using the file upload button on the left. You can upload multiple files at once. Once you have uploaded your data, you can use the tabs on the top of the app to visualise and process your data.", 
                     style = "font-size:130%"),
+                p(
+                  "- dilutions should be formatted as 1/100, 1/200, etc. It will not accept 0.25,1-100, or 100", 
+                  style = "font-size:130%"),
                 
                 # Inserts a horizontal line (a divider in the UI)
                 hr(),
@@ -131,7 +140,7 @@ upload_tab_ui<-function(){
                         tableOutput("antigen_table")
                     ),
                     column(3,
-                           tableOutput("sample_type_table"))
+                       tableOutput("sample_type_table")
                 )
                 
                 
@@ -163,7 +172,7 @@ bead_count_ui <- function() {
                           # Plate selection
                           selectInput(inputId = "plate_selection",
                                       label = "Select Plate:",
-                                      choices = NULL)  # we'll populate dynamically in server
+                                      choices = NULL)  # will populate dynamically in server
 
              ),
              mainPanel(plotOutput("bead_count_plots", height = "1200px")))
@@ -176,12 +185,11 @@ std_curve_plots_ui <- function(){
     tabPanel("Standard Curves", 
         sidebarLayout(
             sidebarPanel("", width=3,
-                p(
-                    "Standard curves show MFI plotted against the log of the dilution. ",
-                    "These plots can be used to determine the MFI of a sample at a ",
-                    "given dilution."
-
-                )
+                
+                         p("Standard curves show MFI plotted against the log of the dilution. ", 
+                           "These plots can be used to determine the MFI of a sample at a ",
+                           "given dilution."
+                           )
             ),
             mainPanel(
                 uiOutput("std_curves")
@@ -312,23 +320,27 @@ download_data_ui <- function() {
                          
                           # Add description that this page is to adjust for data if happy. After all the steps if it looks good then download
                           
-                          # Add level 5 header for Background adjustment
+                          # Adjusting low bead count
                           h5(strong("Adjusting low bead count"), style = "font-size:120%"),
-                          
-                          # User input for bead threshold
-                          numericInput(inputId = "bead_threshold",
-                                       label = "Please enter a minimum bead count: ",
-                                       value = 30, # default
-                                       min = 0),
-                          
-                          # Adds a paragraph of text under the heading
-                          p("Check this box if you want to remove samples with a low bead count for the cleaned dataset",
-                            style = "font-size:120%"),
-                          
-                          checkboxInput("bead_adjustment", "Remove low beads", value = FALSE),
+                            
+                            # User input for bead threshold
+                            numericInput(inputId = "bead_threshold",
+                                         label = "Please enter a minimum bead count: ",
+                                         value = 30, # default
+                                         min = 0),
+                            
+                            # Adds a paragraph of text under the heading
+                            p("Check this box if you want to remove samples with a low bead count for the cleaned dataset",
+                              style = "font-size:120%"),
+                            
+                            checkboxInput("bead_adjustment", "Remove low beads", value = FALSE),
                           
                           # Inserts a horizontal line (a divider in the UI)
-                          hr()
+                          hr(),
+                          
+                          # Background adjustment
+                          h5(strong("Remove background"), style = "font-size:120%")
+                          
              ),
              mainPanel()
              )
@@ -372,33 +384,73 @@ server <- function(input, output, session) {
     source("luminex_dx_functions_v11.R")
     source("normalisation_functions.R")
   
-  # Set up dilutions
   
+  
+  # Set up dilutions
     # Defines a default set of dilutions
     dilutions <- c("1/31250", "1/6250", "1/1250", "1/1000", "1/250", "1/50", "1/10")
     
-    output$dilutions <- renderText(paste("The default dilutions are set to", paste(dilutions,collapse=", "),". If you have your own dilutions, then you can manually update this here. Please seperate the dilutions with a comma."))
+    # Add text to home button on what the value the dilutions are set to
+    output$dilutions <- renderText(paste("The default dilutions are set to", paste(dilutions,collapse=", "),". If you have your own dilutions, then you can manually update this here. Please separate the dilutions with a comma."))
+  
+    # Reactive dilutions (default or user input)
+    user_dilutions <- reactiveVal(dilutions)
     
-    # Update dilutions interactively (flexibility)
     observeEvent(input$dilutionButton, {
-        
-        # Reads user input (dilutionInput) and parses it into a proper format
-        dilutions <- parse_dilution_string(input$dilutionInput)
-        output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
+      parsed <- parse_dilution_string(input$dilutionInput)
+      if(length(parsed) > 0){
+        user_dilutions(parsed)
+        output$dilutions <- renderText(paste("The dilutions are set to", paste(parsed, collapse=", "),". You can update this here."))
+      }
     })
+  
+      # # Defines a default set of dilutions
+      # dilutions <- c("1/31250", "1/6250", "1/1250", "1/1000", "1/250", "1/50", "1/10")
+      # 
+      # output$dilutions <- renderText(paste("The default dilutions are set to", paste(dilutions,collapse=", "),". If you have your own dilutions, then you can manually update this here. Please separate the dilutions with a comma."))
+      # 
+      # # Update dilutions interactively (flexibility)
+      # observeEvent(input$dilutionButton, {
+      #     
+      #     # Reads user input (dilutionInput) and parses it into a proper format
+      #     dilutions <- parse_dilution_string(input$dilutionInput)
+      #     output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
+      # })
+  
+  # Set up background
+    bkg_label <- ("(blank|background)") # contains any cell that has blank or background
     
-    # Set up standard curves
-    std_label <- c("(?i)CP3|Std Curve|WHO")
+      
+  # Set up standard curves
+    std_label <- reactiveVal("(CP3|Std Curve|WHO)")
     
-    output$std_label <- renderText(paste("The default Standard Curves are set to", paste(std_label,collapse=", "),". If you have your own standard curves, then you can manually update this here. Please seperate the standard curves with a comma."))
+    output$std_label <- renderText({paste("The default Standard Curves are set to variables that contain CP3, Std Curve, WHO. If you have your own standard curves, then you can manually update this here. Please seperate the standard curves with a comma.")})
     
     # Update std_label interactively (flexibility)
     observeEvent(input$std_labelButton, {
       
-      # Reads user input (std_labelInput) and parses it into a proper format
-      std_label <- parse_dilution_string(input$std_labelInput)
-      output$std_label <- renderText(paste("The standard curve labels are set to ", paste(std_label,collapse=", "),". You can update this here."))
+      # Parse user input: split by comma, trim whitespace
+      labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
+      
+      if(length(labels) > 0){
+        # Combine into regex pattern
+        regex_pattern <- paste(labels, collapse = "|")
+        std_label(regex_pattern)  # update reactiveVal
+        
+        # Update displayed text
+        output$std_label <- renderText({
+          paste("The standard curve labels are now set to: ", paste(labels, collapse = ", "))
+        })
+      }
     })
+    #   # Reads user input (std_labelInput) and parses it into a proper format
+    #   std_label <- parse_dilution_string(input$std_labelInput)
+    #   output$std_label <- renderText(paste("The standard curve labels are set to ", paste(std_label,collapse=", "),". You can update this here."))
+    # })
+   
+    
+    # Set up background values 
+    
     
     # File upload and data preparation
     d <- reactive({
@@ -429,17 +481,17 @@ server <- function(input, output, session) {
         ## Combine plates into one dataset
         d$combinedplates <- join.plates(d$plates)
         
-        ## Skip NAs
-        d$combinedplates <- na.omit(d$combinedplates)
-        for (i in seq_along(d$plates)){
-          d$plates[[i]] <- na.omit(d$plates[[i]])
-        }
+          ## Skip NAs
+          d$combinedplates <- na.omit(d$combinedplates)
+          for (i in seq_along(d$plates)){
+            d$plates[[i]] <- na.omit(d$plates[[i]])
+          }
         
         ## Extracts antigen names (columns 3 onward = data columns)
         d$ags <- colnames(d$combinedplates)[3:ncol(d$combinedplates)]
         
-        ## Extracts all sample types (background and controls, not ppt sample)
-        d$sample_type <- colnames(d$combinedplates)[2]
+        ## Extracts Sample names (columns 3 onward = data columns)
+          d$sample_type <- colnames(d$combinedplates)[2]
           
           # Replace any cell containing "Unknown" (case-insensitive) with "Sample"
           d$sample_type <- ifelse(grepl("Unknown", d$sample_type, ignore.case = TRUE), "Sample", d$sample_type)[2]
@@ -450,48 +502,48 @@ server <- function(input, output, session) {
         d
     })
     
-  # Reactive for bead count
-  bead_data <- reactive({
-      # Make sure a file has been uploaded
-      req(input$fileUpload)
-      
-      # Extract the folder path and the file label, drop .csv extension
-      raw_data_path <- dirname(input$fileUpload[1,"datapath"])
-      plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
-      
-      # Reading uploaded data
-      bead_data = list()
-      bead_data$rawdatapath <- raw_data_path
-      bead_data$uploadedfilenumber <- nrow(input$fileUpload)
-      
-      ## Load batch data from the uploaded files
-      bead_data$plates <- read.batch.beads(path = raw_data_path)
-      
-      ## Assign user-friendly names to the plates
-      names(bead_data$plates) <- plate_lab
-      
-      # Join plates
-      ## Store metadata: plate names, number of plates
-      bead_data$platenames <- names(bead_data$plates)
-      bead_data$numplates <- length(bead_data$platenames)
-      
-      ## Combine plates into one dataset
-      bead_data$combinedplates <- join.plates(bead_data$plates)
-      
-      ## Skip NAs
-      bead_data$combinedplates <- na.omit(bead_data$combinedplates)
-      for (i in seq_along(bead_data$plates)){
-        bead_data$plates[[i]] <- na.omit(bead_data$plates[[i]])
-      }
-      
-      ## Extracts antigen names (columns 3 onward = data columns)
-      bead_data$ags <- colnames(bead_data$combinedplates)[3:ncol(bead_data$combinedplates)]
-      
-      ## Metadata with dates - include date & plate info
-      bead_data$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)
-      bead_data$combineddatesplates <- join.plates(bead_data$datesplates)
-      bead_data
-      })
+    # Data preparation beads - Reactive for bead count
+    bead_data <- reactive({
+        # Make sure a file has been uploaded
+        req(input$fileUpload)
+        
+        # Extract the folder path and the file label, drop .csv extension
+        raw_data_path <- dirname(input$fileUpload[1,"datapath"])
+        plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
+        
+        # Reading uploaded data
+        bead_data = list()
+        bead_data$rawdatapath <- raw_data_path
+        bead_data$uploadedfilenumber <- nrow(input$fileUpload)
+        
+        ## Load batch data from the uploaded files
+        bead_data$plates <- read.batch.beads(path = raw_data_path)
+        
+        ## Assign user-friendly names to the plates
+        names(bead_data$plates) <- plate_lab
+        
+        # Join plates
+        ## Store metadata: plate names, number of plates
+        bead_data$platenames <- names(bead_data$plates)
+        bead_data$numplates <- length(bead_data$platenames)
+        
+        ## Combine plates into one dataset
+        bead_data$combinedplates <- join.plates(bead_data$plates)
+        
+        ## Skip NAs
+        bead_data$combinedplates <- na.omit(bead_data$combinedplates)
+        for (i in seq_along(bead_data$plates)){
+          bead_data$plates[[i]] <- na.omit(bead_data$plates[[i]])
+        }
+        
+        ## Extracts antigen names (columns 3 onward = data columns)
+        bead_data$ags <- colnames(bead_data$combinedplates)[3:ncol(bead_data$combinedplates)]
+        
+        ## Metadata with dates - include date & plate info
+        bead_data$datesplates <- read.batch(path=raw_data_path,inc_date=T,inc_plate=T)
+        bead_data$combineddatesplates <- join.plates(bead_data$datesplates)
+        bead_data
+        })
 
   
     # Create a reactive that extracts antigen column names from the uploaded data for app use
@@ -564,31 +616,31 @@ server <- function(input, output, session) {
       })
 
     # Upload summary: number of files, number of plates, antigens
-    output$upload_summary<- renderText({
-        if (!is.null(input$fileUpload)){
-            paste(d()$uploadedfilenumber," files were uploaded, leading to ", d()$numplates," plates being loaded with the following plates and antigens:")
-        } else {
-            "Please upload a file using the upload button on the left sidebar."
-        }
-    })
-
-    # Tables of antigen names
-    output$antigen_table<-renderTable({
-        req(input$fileUpload)
-        data.frame(Antigens=d()$ags)
-    })
-    
-    # Tables of Sample names
-    output$sample_type_table<-renderTable({
-      req(input$fileUpload)
-      data.frame(Sample=d()$sample_type)
-    })
-    
-    # Tables of plate names
-    output$plate_table<-renderTable({
-        req(input$fileUpload)
-        data.frame(Plates=d()$platenames)
-    })
+          output$upload_summary<- renderText({
+              if (!is.null(input$fileUpload)){
+                  paste(d()$uploadedfilenumber," files were uploaded, leading to ", d()$numplates," plates being loaded with the following plates and antigens:")
+              } else {
+                  "Please upload a file using the upload button on the left sidebar."
+              }
+          })
+      
+          # Tables of antigen names
+          output$antigen_table<-renderTable({
+              req(input$fileUpload)
+              data.frame(Antigens=d()$ags)
+          })
+          
+          # Tables of Sample names
+          output$sample_type_table<-renderTable({
+            req(input$fileUpload)
+            data.frame(Sample=d()$sample_type)
+          })
+          
+          # Tables of plate names
+          output$plate_table<-renderTable({
+              req(input$fileUpload)
+              data.frame(Plates=d()$platenames)
+          })
 
     output$download_button <- renderUI({
         req(ld())
@@ -664,47 +716,47 @@ server <- function(input, output, session) {
     })
 
     # Standard Curves
-    output$std_curves <- renderUI({
-        req(input$fileUpload)
-        fluidRow(
-            lapply(ag(),function(antigen){
-                id <- paste0("plot_std_", antigen)
-                plotOutput(outputId = id)
-                
-                std_curves <- lapply(d()$platenames, function(x) {
-                  
-                  # Generates interactive standard curve per antigen and plate  
-                  get.standard(
-                        data = d()$plates[[x]],
-                        std_label = std_label, # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
-                        dilutions = dilutions,
-                        n_points <- length(dilutions))
-                  })
-                
-                names(std_curves) <- d()$platenames
-
-                column(6,
-                    renderPlotly({
-                        # Generates interactive standard curve plots per antigen and plate
-                        plot.std.curve3_interactive(
-                            data = std_curves,
-                            antigen = antigen,
-                            dilutions = dilutions,
-                            plate_labels = input$std_curve_input )
-                    }) )
-            }) )
-    })
-
-    # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
-    output$std_curve_plate_selection <- renderUI({
-        selectizeInput(
-            inputId="std_curve_input",
-            label="Select plates (max 5)",
-            choices=d()$platenames,
-            selected = NULL,
-            multiple=TRUE,
-            options = list(maxItems = 5) ) # Can remove this if we want unlimited plate selection
-    })
+          output$std_curves <- renderUI({
+              req(input$fileUpload)
+              fluidRow(
+                  lapply(ag(),function(antigen){
+                      id <- paste0("plot_std_", antigen)
+                      plotOutput(outputId = id)
+                      
+                      std_curves <- lapply(d()$platenames, function(x) {
+                        
+                        # Generates interactive standard curve per antigen and plate  
+                        get.standard(
+                              data = d()$plates[[x]],
+                              std_label = std_label(), # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
+                              dilutions = dilutions,
+                              n_points = length(dilutions))
+                        })
+                      
+                      names(std_curves) <- d()$platenames
+      
+                      column(6,
+                          renderPlotly({
+                              # Generates interactive standard curve plots per antigen and plate
+                              plot.std.curve3_interactive(
+                                  data = std_curves,
+                                  antigen = antigen,
+                                  dilutions = dilutions,
+                                  plate_labels = input$std_curve_input )
+                          }) )
+                  }) )
+          })
+      
+          # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
+          output$std_curve_plate_selection <- renderUI({
+              selectizeInput(
+                  inputId="std_curve_input",
+                  label="Select plates (max 5)",
+                  choices=d()$platenames,
+                  selected = NULL,
+                  multiple=TRUE,
+                  options = list(maxItems = 5) ) # Can remove this if we want unlimited plate selection
+          })
 
     # QC
     ## Levey-Jennings controls for tracking high, mid, and low dilution points across plates
@@ -749,7 +801,7 @@ server <- function(input, output, session) {
                         levey.jennings(
                             data = d()$combineddatesplates,
                             std_label = std_label,
-                            blank_label = "Background0",
+                            blank_label = bkg_label, # "Background0",
                             dil_high = input$levey_high,
                             dil_mid = input$levey_mid,
                             dil_low = input$levey_low,
@@ -827,6 +879,21 @@ server <- function(input, output, session) {
     output$loess_data <- renderTable({
         ld()$data[[1]]
     })}
+
+
+    # # Downloading cleaned data
+    # output$cleaned_data <- renderDataTable({
+    #   
+    #   # Remove background
+    #   
+    #     ## Create variable that is the selected background removal
+    #     bkg_select <- reactive({
+    #       input$backgroundremoval
+    #     })
+
+          ## Create cleaned dataset
+
+    # })
   
 
 
@@ -834,5 +901,5 @@ server <- function(input, output, session) {
 shinyApp(ui = ui, server = server)
 
 # rsconnect::deployApp(
-#   appName = "Luminex_Data_Analysis"       # set your desired app name (this affects the URL)
+#   appName = "Luminex_Data_Analysis"
 # )

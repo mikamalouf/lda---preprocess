@@ -51,4 +51,3 @@ install.packages("plyr") <br />
 install.packages("mixtools") <br />
 install.packages("nls2") <br />
 install.packages("lubridate")
-install.packages("rsconnect")
