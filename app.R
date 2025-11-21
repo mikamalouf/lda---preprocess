@@ -3,9 +3,87 @@ library(shinyFiles)
 library(plotly)
 library(glue)
 library(rsconnect)
+library(DT)
 
 # Define UI ----
 # Define UI for random distribution app ----
+
+
+# TAB LAYOUT
+
+intro_tab_ui <- function(){
+  tabPanel(
+    "Intro",
+    sidebarLayout(
+      
+      sidebarPanel(
+        "", width=3,
+        
+        h3(strong("Variable requirements"), style = "font-size:170%"),
+        p("Please read the following variable input requirements before proceeding with the app", 
+          style = "font-size:150%"),
+        
+        # Dilutions
+        h3(tags$u("Dilutions")),
+        p("- dilutions should be formatted as 1/100, 1/200, etc.", style = "font-size:130%"),
+        p("- dilutions should be listed from highest to lowest.", style = "font-size:130%"),
+        p("- Correct example format: 1/3200, 1/1600...", style = "font-size:130%"),
+        
+        # Standard curve
+        h3(tags$u("Standard Curve")),
+        
+        # Background samples
+        h3(tags$u("Background samples"))
+      ),
+      
+      mainPanel(
+        fluidRow(
+          column(12, align="center",
+                 img(src='logo.png', width=200, height=200))
+        ),
+        
+        fluidRow(
+          column(12, align="center",
+                 h1(strong("Luminex Data Analysis (LDA)"))
+          )
+        ),
+        
+        # Intro to the app
+        p("Welcome to the Luminex Data Analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please read the variable input requirements before proceeding with the app.",
+          style = "font-size:140%"),
+        
+        hr(),
+        
+        # About
+        h2(strong("About")),
+        p("This R Shiny app was created by researchers in the Drakeley group at the London School of Hygiene and Tropical Medicine to standardise the quality control steps of analysing raw multiplex datasets from a Luminex machine.", 
+          style = "font-size:140%"),
+        
+        div(
+          strong("Composition"),
+          tags$ul(
+            tags$li(strong("Bead count:"), " Visualise wells with low bead counts on each plate. Default threshold is 30 beads."),
+            tags$li(strong("Standard curve:"), " Plots MFI values against log dilution values."),
+            tags$li(strong("Coefficient of variation plots:"), " Measures variation between samples in a plate."),
+            tags$li(strong("Levey-Jennings plots:"), " Tracks control samples over time."),
+            tags$li(strong("Normalisation:"), " Seeks differences between units or batches."),
+            tags$li(strong("Loess:"), " Visualise differences between raw and normalised plate."),
+            tags$li(strong("Download:"), " Data can be cleaned and downloaded for downstream analysis.")
+          ), style = "font-size:140%"
+        ),
+        
+        p("No coding experience is necessary to interpret and use this app.", 
+          style = "font-size:140%"),
+        
+        hr(),
+        
+        # Contact information
+        h2(strong("Contact"))
+      )
+    )
+  )
+}
+
 
 upload_tab_ui<-function(){
   tabPanel(
@@ -38,116 +116,78 @@ upload_tab_ui<-function(){
                            p(
                              textOutput("dilutions"),
                              textInput(inputId = "dilutionInput",label=""),
-                             actionButton("dilutionButton","Submit dilutions (comma seperated)")
+                             actionButton("dilutionButton","Submit dilutions (comma seperated)"),
+                             style = "font-size:120%"
                            ),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
       
-      ### SEE IF YOU NEED THIS                                      
-                         # Add level 5 header for Standard curves
+                         # Standard curves
                          h5(strong("Standard curve"), style = "font-size:120%"),
                          
                            # Adds a paragraph of text under the heading
                            p(
                              textOutput("std_label"),
                              textInput(inputId = "std_labelInput",label=""),
-                             actionButton("std_labelButton","Submit standard curves")
-                           ),
-                           
-                           # Inserts a horizontal line (a divider in the UI)
-                           hr(),
-      #####
-      
-      
-      ### SEE IF YOU NEED THIS   
-                         # Add level 5 header for Background adjustment
-                         h5(strong("Background adjustment"), style = "font-size:120%"),
-                         
-                           # Adds a paragraph of text under the heading
-                           p(
-                             "Check this box if you want to adjust for background. This takes",
-                             "the mean of all background readings for all plates for each antigen",
-                             "in turn, and subtracts this from all other readings for that antigen"
-                             , style = "font-size:120%"),
-                           
-                           checkboxInput("background_adjustment", "Adjust for background", value = FALSE), # subtraction. do the same with division
-                           
-                           # Inserts a horizontal line (a divider in the UI)
-                           hr(),
-      
-                         
-                         # Add level 5 header for Background removal
-                         h5(strong("Background removal"), style = "font-size:120%"),
-                           
-                           # Adds text
-                           p("Please select how you would like to remove the background MFI", style = "font-size:120%"),
-                           
-                           # Adds a paragraph of text under the heading
-                           p(
-                             radioButtons(
-                               inputId = "backgroundremoval",
-                               label = "Choose one option:",
-                               choices = c("Subtract", "Divide"),
-                               selected = "Subtract"  # default choice
-                             )
+                             actionButton("std_labelButton","Submit standard curves"),
+                             style = "font-size:120%"
                            ),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
                          
-                         ),
-          #####
+                         # Background
+                         h5(strong("Background samples"), style = "font-size:120%"),
+                         
+                           # Adds a paragraph of text under the heading
+                           p(
+                             textOutput("bkg_label"),
+                             textInput(inputId = "bkg_labelInput",label=""),
+                             actionButton("bkg_labelButton","Submit Background samples"),
+                             style = "font-size:120%"
+                           )
+            ),
       
+                         
+            ### SEE IF YOU NEED THIS   
+                         # # Add level 5 header for Background adjustment
+                         # h5(strong("Background adjustment"), style = "font-size:120%"),
+                         # 
+                         #   # Adds a paragraph of text under the heading
+                         #   p(
+                         #     "Check this box if you want to adjust for background. This takes",
+                         #     "the mean of all background readings for all plates for each antigen",
+                         #     "in turn, and subtracts this from all other readings for that antigen"
+                         #     , style = "font-size:120%"),
+                         #   
+                         #   checkboxInput("background_adjustment", "Adjust for background", value = FALSE), # subtraction. do the same with division
+                         #  
+                         # ),
             mainPanel(
-                fluidRow(
-                    column(12, align="center",
-                           img(src='logo.png', width=200, height=200)  
-                    ),
-                ),
-                fluidRow(
-                    column(12, align="center",
-                        h1(
-                            "Luminex Data analysis"
-                        ),
-                    ),
-                ),
-                
-                # Adds a paragraph of text under the heading
-                p(
-                    "Welcome to the Luminex data analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please upload your data using the file upload button on the left. You can upload multiple files at once. Once you have uploaded your data, you can use the tabs on the top of the app to visualise and process your data.", 
-                    style = "font-size:130%"),
-                p(
-                  "- dilutions should be formatted as 1/100, 1/200, etc. It will not accept 0.25,1-100, or 100", 
-                  style = "font-size:130%"),
-                
-                # Inserts a horizontal line (a divider in the UI)
-                hr(),
-                
-                
-                h5("Upload summary", style = "font-size:150%"),
-                
-                # Adds text under the heading
-                p(
-                    tableOutput("upload_summary"), style = "font-size:150%"
-                ),
-                
-                fluidRow(
-                    column(3,
-                        tableOutput("plate_table")
-                    ),
-                    column(3,
-                        tableOutput("antigen_table")
-                    ),
-                    column(3,
-                       tableOutput("sample_type_table")
-                )
-                
-                
+              
+              fluidRow(
+                column(12, align="center",
+                       h1("Luminex Data Analysis"))
+              ),
+              
+              p("Please upload your data using the file upload button on the left. You can upload multiple files at once. Once you have uploaded your data, you can use the tabs on the top of the app to visualise and process your data.",
+                style = "font-size:140%"),
+              
+              hr(),
+              
+              h5("Upload summary", style = "font-size:150%"),
+              
+              # Adds text under the heading
+              p(tableOutput("upload_summary"), style = "font-size:150%"),
+              
+              fluidRow(
+                column(3, tableOutput("plate_table")),
+                column(3, tableOutput("antigen_table"))
             )
-          
         )
-      )
+  )
+  )
 }
 
 bead_count_ui <- function() {
@@ -192,7 +232,9 @@ std_curve_plots_ui <- function(){
                            )
             ),
             mainPanel(
-                uiOutput("std_curves")
+              DT::dataTableOutput("std_table_test")
+              #uiOutput("std_curve_plot")   
+              
             )
         )
     )
@@ -232,28 +274,20 @@ normalisation_ui <- function(){
     tabPanel("Normalisation", 
         sidebarLayout(
             sidebarPanel("", width=3,
-                p(
-                    "A curve is fitted to the control samples for each antigen. The curve",
-                    "is then used to estimate 100 MFI values at 100 incremental dilutions",
-                    "within curve's original range."),
-                p(
-                    "Different ways of fitting the curve have been implemented. Please",
-                    "choose one and wait a few seconds for the visualisation to appear"
-                ),
-                p(
-                    "The poly method fits a cubic polynomial curve to the data"
-                ),
-                p(
-                    "The nls method uses non-linear least squares fitting using the nls2 library"
-                ),
-                p(
-                    "The kernsmooth method estimates a regression function using local polynomials using the KernSmooth library"
-                ),
-                p(
-                    "The cgam method fits a generalised additive model using the cgam library"
-                ),
-                uiOutput("normControls")
-            ),
+                
+                         p("A curve is fitted to the control samples for each antigen. The curve",
+                           "is then used to estimate 100 MFI values at 100 incremental dilutions",
+                           "within curve's original range.", style = "font-size:130%"),
+                         
+                         p("Different ways of fitting the curve have been implemented. Please",
+                           "choose one and wait a few seconds for the visualisation to appear:", style = "font-size:130%"),
+                         
+                         p(strong("poly method"),": fits a cubic polynomial curve to the data", style = "font-size:130%"),
+                         p(strong("nls method"), ": uses non-linear least squares fitting using the nls2 library", style = "font-size:130%"),
+                         p(strong("kernsmooth method"), ": estimates a regression function using local polynomials using the KernSmooth library", style = "font-size:130%"),
+                         p(strong("cgam method"), ": fits a generalised additive model using the cgam library", style = "font-size:130%"),
+                         uiOutput("normControls")
+                         ),
             mainPanel(
                 uiOutput("normalisation_plots"),
                 # uiOutput("normalised_ag_plot")
@@ -269,8 +303,8 @@ loess_ui <- function(){
                 p(
                     "MFIs are subtracted between the chosen reference and each",
                     "target plate curve at 100 dilutions for each antigen,",
-                    "producing delta MFI values for the dilutions. A loess",
-                    "curve is then fitted to the delta MFI values for each",
+                    "producing Δ MFI values for the dilutions. A loess",
+                    "curve is then fitted to the Δ MFI values for each",
                     "plate/antigen. The loess curve is then used to adjust the",
                     "raw MFI values for each plate/antigen.",
                     ),
@@ -339,7 +373,20 @@ download_data_ui <- function() {
                           hr(),
                           
                           # Background adjustment
-                          h5(strong("Remove background"), style = "font-size:120%")
+                          h5(strong("Remove background"), style = "font-size:120%"),
+                          
+                            # Adds text
+                            p("Please select how you would like to remove the background MFI", style = "font-size:120%"),
+                            
+                            # Adds a paragraph of text under the heading
+                            p(
+                              radioButtons(
+                                inputId = "backgroundremoval",
+                                label = "Choose one option:",
+                                choices = c("Subtract", "Divide"),
+                                selected = "Subtract"  # default choice
+                              )
+                            )
                           
              ),
              mainPanel()
@@ -350,15 +397,33 @@ download_data_ui <- function() {
 
 ui <- fluidPage(
   
-  # App title ----
-
-    # Main panel for displaying outputs ----
-
-    
-    # Output: Tabset w/ plot, summary, and table ----
+  # Increase the size of the tab panel
+    tags$head(tags$style(HTML("
+      /* Tab headers */
+      .nav-tabs > li > a {
+        font-size: 18px !important;       /* text size */
+        padding: 15px 20px !important;    /* increase height & horizontal padding */
+      }
+  
+      /* Active tab */
+      .nav-tabs > li.active > a,
+      .nav-tabs > li.active > a:focus,
+      .nav-tabs > li.active > a:hover {
+        font-size: 18px !important;
+        padding: 15px 20px !important;
+      }
+  
+      /* Space between tabs and content */
+      .tab-content {
+        padding-top: 20px !important;
+      }
+    "))),
+  
+  # Tabset panel
     tabsetPanel(
-      id="tabs_id",
+      id = "tabs_id",
       type = "tabs",
+      intro_tab_ui(),
       upload_tab_ui(),
       bead_count_ui(),
       std_curve_plots_ui(),
@@ -367,10 +432,8 @@ ui <- fluidPage(
       loess_ui(),
       download_data_ui()
     )
-    
-
-
 )
+
 
 # Define server logic ----
 
@@ -383,7 +446,6 @@ server <- function(input, output, session) {
   # Read in functions
     source("luminex_dx_functions_v11.R")
     source("normalisation_functions.R")
-  
   
   
   # Set up dilutions
@@ -417,10 +479,6 @@ server <- function(input, output, session) {
       #     output$dilutions <- renderText(paste("The dilutions are set to", paste(dilutions,collapse=", "),". You can update this here."))
       # })
   
-  # Set up background
-    bkg_label <- ("(blank|background)") # contains any cell that has blank or background
-    
-      
   # Set up standard curves
     std_label <- reactiveVal("(CP3|Std Curve|WHO)")
     
@@ -434,7 +492,7 @@ server <- function(input, output, session) {
       
       if(length(labels) > 0){
         # Combine into regex pattern
-        regex_pattern <- paste(labels, collapse = "|")
+        regex_pattern <- paste(labels, collapse = ",")
         std_label(regex_pattern)  # update reactiveVal
         
         # Update displayed text
@@ -447,12 +505,40 @@ server <- function(input, output, session) {
     #   std_label <- parse_dilution_string(input$std_labelInput)
     #   output$std_label <- renderText(paste("The standard curve labels are set to ", paste(std_label,collapse=", "),". You can update this here."))
     # })
+    
+    cleaned_data <- reactive({
+      req(input$fileUpload)  # make sure a file is uploaded
+      files <- input$fileUpload$datapath
+      
+      # Call your read.batch.std function
+      read.batch.std(path = dirname(files[1]), std_label = std_label)
+    })
    
     
-    # Set up background values 
+  # Set up background values 
+    bkg_label <- ("(blank|background)") # contains any cell that has blank or background
     
+    output$bkg_label <- renderText({paste("The default background samples are set to variables that contain <i>blank</i> or <i>background</i>. If your background samples are labelled differently, then you can manually update this here. Please seperate each background sample name with a comma.")})
     
-    # File upload and data preparation
+    # Update bkg_label interactively (flexibility)
+    observeEvent(input$bkg_labelButton, {
+      
+      # Parse user input: split by comma, trim whitespace
+      labels <- trimws(unlist(strsplit(input$bkg_labelInput, ",")))
+      
+      if(length(labels) > 0){
+        # Combine into regex pattern
+        regex_pattern <- paste(labels, collapse = ",")
+        bkg_label(regex_pattern)  # update reactiveVal
+        
+        # Update displayed text
+        output$bkg_label <- renderText({
+          paste("The background samples are now set to: ", paste(labels, collapse = ", "))
+        })
+      }
+    })
+    
+  # File upload and data preparation
     d <- reactive({
       
       # Make sure a file has been uploaded
@@ -544,6 +630,27 @@ server <- function(input, output, session) {
         bead_data$combineddatesplates <- join.plates(bead_data$datesplates)
         bead_data
         })
+    
+    # Data preparation - standard curve
+    std_curve_data <- reactive({
+      req(input$std_labelInput)   # ensures input is not NULL
+      
+      # Parse and clean user input
+      std_labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
+      
+      # Filter standard rows dynamically
+      std_rows <- d()$combinedplates$Sample %in% std_labels
+      standard_data <- d()$combinedplates[std_rows, ]
+      
+      # Pass filtered data to get.standard
+      get.standard(
+        data = standard_data,
+        std_label = NULL,          # no need, data is already filtered
+        dilutions = user_dilutions(),
+        n_points = length(std_labels)
+      )
+    })
+## MIKA NOTES - MAYBE MAKE DATASET WHERE FIRST COLUMN IS THE STD CURVE VARIABLE, SECOND IS THE DILUTION AND THEN MERGE THAT WITH THE MEDIAN MFI TABLE FOR ALL TESTED ANTIGENS
 
   
     # Create a reactive that extracts antigen column names from the uploaded data for app use
@@ -563,7 +670,7 @@ server <- function(input, output, session) {
         # Use normalise_plates function
         normalise_plates(
             all_plates = d()$plates,
-            dilutions = dilutions,
+            dilutions = user_dilutions(),
             ag_list = ag(),
             fit_type = input$fitting_function,
             progress = progress )
@@ -716,36 +823,57 @@ server <- function(input, output, session) {
     })
 
     # Standard Curves
-          output$std_curves <- renderUI({
-              req(input$fileUpload)
-              fluidRow(
-                  lapply(ag(),function(antigen){
-                      id <- paste0("plot_std_", antigen)
-                      plotOutput(outputId = id)
-                      
-                      std_curves <- lapply(d()$platenames, function(x) {
-                        
-                        # Generates interactive standard curve per antigen and plate  
-                        get.standard(
-                              data = d()$plates[[x]],
-                              std_label = std_label(), # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
-                              dilutions = dilutions,
-                              n_points = length(dilutions))
-                        })
-                      
-                      names(std_curves) <- d()$platenames
+    output$cleaned_table <- DT::renderDataTable({
+      req(all_std_data())
+      DT::datatable(
+        all_std_data(),
+        options = list(pageLength = 10, scrollX = TRUE),
+        rownames = FALSE
+      )
+    })
+    
+    
+    output$std_curve_plot <- renderPlotly({
+      req(std_curve_data())
       
-                      column(6,
-                          renderPlotly({
-                              # Generates interactive standard curve plots per antigen and plate
-                              plot.std.curve3_interactive(
-                                  data = std_curves,
-                                  antigen = antigen,
-                                  dilutions = dilutions,
-                                  plate_labels = input$std_curve_input )
-                          }) )
-                  }) )
-          })
+      plot.std.curve3_interactive(
+        data = list(std_curve_data()),
+        antigen = ag(),        
+        dilutions = user_dilutions(),
+        plate_labels = input$std_curve_input
+      )
+    })
+          # ORIGINAL CODE
+          # output$std_curves <- renderUI({
+          #     req(input$fileUpload)
+          #     fluidRow(
+          #         lapply(ag(),function(antigen){
+          #             id <- paste0("plot_std_", antigen)
+          #             plotOutput(outputId = id)
+          #             
+          #             std_curves <- lapply(d()$platenames, function(x) {
+          #               
+          #               # Generates interactive standard curve per antigen and plate  
+          #               get.standard(
+          #                     data = d()$plates[[x]],
+          #                     std_label = std_label(), # standard curves are defined as those that contain CP3, the word Std Curve, or WHO (for WHO)
+          #                     dilutions = dilutions,
+          #                     n_points = length(dilutions))
+          #               })
+          #             
+          #             names(std_curves) <- d()$platenames
+          # 
+          #             column(6,
+          #                 renderPlotly({
+          #                     # Generates interactive standard curve plots per antigen and plate
+          #                     plot.std.curve3_interactive(
+          #                         data = std_curves,
+          #                         antigen = antigen,
+          #                         dilutions = dilutions,
+          #                         plate_labels = input$std_curve_input )
+          #                 }) )
+          #         }) )
+          # })
       
           # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
           output$std_curve_plate_selection <- renderUI({
@@ -762,9 +890,9 @@ server <- function(input, output, session) {
     ## Levey-Jennings controls for tracking high, mid, and low dilution points across plates
     output$levey_jennings_select_points <- renderUI({
         tagList(
-            selectInput("levey_high", "Select high dilution", dilutions, selected="1/10"),
-            selectInput("levey_mid", "Select mid dilution", dilutions, selected="1/50"),
-            selectInput("levey_low", "Select low dilution", dilutions,selected="1/250") )
+            selectInput("levey_high", "Select high dilution", user_dilutions(), selected="1/10"),
+            selectInput("levey_mid", "Select mid dilution", user_dilutions(), selected="1/50"),
+            selectInput("levey_low", "Select low dilution", user_dilutions(),selected="1/250") )
     })
 
     ## Plots coefficient of variation across dilutions to see consistency of replicates
@@ -776,8 +904,8 @@ server <- function(input, output, session) {
                     plot.coefv(
                         data = d()$plates,
                         ag(),
-                        std_label = std_label,
-                        dilutions=dilutions,
+                        std_label = std_label(),
+                        dilutions=user_dilutions(),
                         target_dilution = "1/250" ) 
                 })  ),
             column(12,
@@ -785,8 +913,8 @@ server <- function(input, output, session) {
                     plot.coefv(
                         data = d()$plates,
                         ag(),
-                        std_label = std_label,
-                        dilutions=dilutions,
+                        std_label = std_label(),
+                        dilutions=user_dilutions(),
                         target_dilution = "1/1250" )
                 }) )
         ) })
@@ -800,7 +928,7 @@ server <- function(input, output, session) {
                     renderPlot({
                         levey.jennings(
                             data = d()$combineddatesplates,
-                            std_label = std_label,
+                            std_label = std_label(),
                             blank_label = bkg_label, # "Background0",
                             dil_high = input$levey_high,
                             dil_mid = input$levey_mid,
@@ -854,8 +982,8 @@ server <- function(input, output, session) {
                         par(mfrow=c(1,2))
 
                         # Compares raw vs loess-adjusted antigen plots
-                        plot.ag.plates.raw(data=d()$plates, ag=a, dilutions=dilutions)
-                        plot.ag.plates.raw(data=ld()$data, ag=a, dilutions=dilutions)
+                        plot.ag.plates.raw(data=d()$plates, ag=a, dilutions=user_dilutions())
+                        plot.ag.plates.raw(data=ld()$data, ag=a, dilutions=user_dilutions())
                         par(mfrow=c(1,1))
                     }) )
             }) )

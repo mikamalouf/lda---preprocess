@@ -72,37 +72,6 @@ read.batch <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
   
 }
 
-
-### ### ### ### ### ### ### ### #
-##### "bead.check" function #####
-### ### ### ### ### ### ### ### #
-
-# Checks if bead counts fall below a specified threshold by antigen
-# Prints list of samples per antigen
-
-bead.check <- function(data, min=30, ag_list) {
-  
-  for (i in ag_list) {
-      
-    bead_low <- which(data[,i]<min)
-      
-    if (length(bead_low)>0) {
-      
-      bead_low_table <- as.data.frame(cbind(as.character(data[bead_low,"Location"]),as.character(data[bead_low,"Sample"]),data[bead_low,i]))
-      names(bead_low_table) <- c("well","sample_id","beads")
-        
-      print(i)
-      print(bead_low_table)
-      
-    } else {
-      print(i)
-      print("All wells are above the minimum bead count for this antigen")
-    }
-    
-  }
-  
-}
-
 ### ### ### ### ### ### ### ### ##
 ##### "join.plates" function #####
 ### ### ### ### ### ### ### ### ##
@@ -126,6 +95,147 @@ join.plates <- function(plates,exc_blank=F) {
   return(output)
   
 }
+
+### ### ### ### ### ### ### ### ### ###
+##### "read.batch.beads" function #####
+### ### ### ### ### ### ### ### ### ###
+read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+    section1 <- grep("Count",plate[[i]]$Sample)[1]
+    section2 <- grep("Avg Net MFI",plate[[i]]$Sample)
+    
+    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
+    
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+    }
+    
+    if (inc_plate==T) plate[[i]]$plate <- i
+    
+  }
+  
+  names(plate) <- plate_lab
+  
+  return(plate)
+  
+}
+
+### ### ### ### ### ### ### ### ### #
+##### "read.batch.std" function #####
+### ### ### ### ### ### ### ### ### #
+
+read.batch.std <- function (path, std_label, inc_date=F, inc_plate=F) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  # Split std_label input into vector (handles comma + space)
+  std_labels <- trimws(unlist(strsplit(std_label, ",")))
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+    section1 <- grep("Dilution Factor",plate[[i]]$Sample)
+    section2 <- grep("Median",plate[[i]]$Sample)
+
+    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
+    
+    plate[[i]] <- plate[[i]][plate[[i]]$Sample %in% std_labels, ]
+    
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+    }
+    
+    if (inc_plate==T) plate[[i]]$plate <- i
+    
+  }
+  
+  names(plate) <- plate_lab
+  
+  return(plate)
+  
+}
+
+
+
+### ### ### ### ### ### ### ### ### ### #
+##### "plot_beads_by_well" function #####
+### ### ### ### ### ### ### ### ### ### #
+plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
+  # Standardize column name
+  if (!"Well" %in% names(plate_data)) {
+    if ("Location" %in% names(plate_data)) {
+      plate_data <- plate_data %>% dplyr::rename(Well = Location)
+    } else {
+      stop("No 'Well' or 'Location' column found in plate_data")
+    }
+  }
+  
+  # Clean Location from 1(1,A1) -> 1
+  plate_data$Well <- sub(".*,(.*)\\).*", "\\1", plate_data$Well)
+  
+  # Create vector of breaks (first well of each row)
+  x_breaks <- unique(sub("(.)\\d+", "\\11", plate_data$Well))
+  
+  # Remove Total Events (if it is in the dataset)
+  if("Total.Events" %in% names(plate_data)) {
+    plate_data <- plate_data %>%
+      select(-c(Total.Events))
+  }
+  
+  ## Convert to long format to plot
+  bead_data <- plate_data %>%
+    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount")
+  
+  bead_data$below_threshold <- bead_data$BeadCount < threshold
+  
+  ## Plot
+  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+    geom_line() +
+    geom_point(aes(color = below_threshold), size = 2) +
+    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
+    geom_hline(yintercept = threshold, linetype = "dashed") +
+    scale_x_discrete(breaks = x_breaks) +
+    labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
+    theme_minimal() +
+    theme(strip.text = element_text(size=20),
+          axis.text.y = element_text(size=15),
+          axis.text.x = element_text(hjust = 1, size=15), # angle = 45 (makes the label tilted if needing to fit for size)
+          axis.title = element_text(size = 18),
+          plot.title  = element_text(size = 20, face = "bold")) +
+    facet_wrap(~Antigen, scales = "free_y", ncol = 2)
+  
+  # plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
+  # 
+  # return(plotly_obj)
+  
+}
+
+
 
 ### ### ### ### ### ### ### ### ###
 ##### "blank.adjust" function #####
@@ -280,9 +390,8 @@ exclude <- function(data,blank_label=NULL,neg_label=NULL,std_label=NULL) {
 
 get.standard <- function(data, std_label, dilutions, n_points) {
   
-  # Convert std_label to regex that matches any substring, case-insensitive
-  pattern <- paste0("(?i)", std_label)
-  matches <- grep(pattern, data$Sample, perl=TRUE)
+  # Instead of regex, match exact Sample names
+  matches <- which(data$Sample %in% unlist(strsplit(std_label, "\\|")))
   
   if(length(matches) == 0) {
     warning("No standard curve samples found for std_label: ", std_label)
@@ -369,7 +478,7 @@ plot.std.curve3_interactive <- function(data, antigen, dilutions, std_label, neg
   plate_labels_def <- c()
   
   # Split the user-defined standard labels
-  std_labels <- unlist(strsplit(std_label, "\\|"))   # e.g., "P1|P2|P3|P4|P5|P6|P7|P8"
+  std_labels <- unlist(strsplit(std_label, ","))   # e.g., "P1|P2|P3|P4|P5|P6|P7|P8"
   
   for (j in 1:length(data)){
     
@@ -378,11 +487,11 @@ plot.std.curve3_interactive <- function(data, antigen, dilutions, std_label, neg
       next
     }
     
-    # --- FILTER STANDARD ROWS --- #
+    # Filter standard rows
     std_rows <- data[[j]]$Sample %in% std_labels       # Subset only standard rows
     standard_data <- data[[j]][std_rows, ]
     
-    # --- CALL get.standard ON SUBSET --- #
+    # Call function get.standard on subset
     std_curve <- get.standard(standard_data, std_label = std_label, dilutions = dilutions, n_points = length(dilutions))
     
     if (!is.null(std_curve)) {
@@ -401,7 +510,7 @@ plot.std.curve3_interactive <- function(data, antigen, dilutions, std_label, neg
   
   n_dil <- length(dilutions)
   
-  # --- PLOTLY FIGURE --- #
+  # Plot with plotly
   fig <- plot_ly(x = 1:n_dil, y = curves[[1]], mode="lines", type="scatter", name=pnames[1], showlegend=F)
   for (i in 2:length(data)){
     fig <- fig %>% add_trace(x = 1:n_dil, y = curves[[i]], mode="lines", type="scatter", name=pnames[i], showlegend=F)
@@ -721,104 +830,11 @@ plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
 
 }
 
-### ### ### ### ### ### ### ### ### ###
-##### "read.batch.beads" function #####
-### ### ### ### ### ### ### ### ### ###
-read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
-  
-  setwd(path)
-  temp <- list.files(pattern="*.csv")
-  plate_lab <- substr(temp,1,nchar(temp)-4)
-  plate <- list()
-  
-  for(i in 1:length(temp)) { 
-    
-    plate_raw <- read.csv(temp[i])
-    startrow <- grep("DataType",plate_raw[,1])[1]
-    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
-    
-    section1 <- grep("Count",plate[[i]]$Sample)[1]
-    section2 <- grep("Avg Net MFI",plate[[i]]$Sample)
-    
-    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
-    
-    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
-    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
-    
-    if (inc_date==T) {
-      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
-      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
-    }
-    
-    if (inc_plate==T) plate[[i]]$plate <- i
-    
-  }
-  
-  names(plate) <- plate_lab
-  
-  return(plate)
-  
-}
-
-
-### ### ### ### ### ### ### ### ### ### #
-##### "plot_beads_by_well" function #####
-### ### ### ### ### ### ### ### ### ### #
-plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
-  # Standardize column name
-  if (!"Well" %in% names(plate_data)) {
-    if ("Location" %in% names(plate_data)) {
-      plate_data <- plate_data %>% dplyr::rename(Well = Location)
-    } else {
-      stop("No 'Well' or 'Location' column found in plate_data")
-    }
-  }
-
-  # Clean Location from 1(1,A1) -> 1
-  plate_data$Well <- sub(".*,(.*)\\).*", "\\1", plate_data$Well)
-
-  # Create vector of breaks (first well of each row)
-  x_breaks <- unique(sub("(.)\\d+", "\\11", plate_data$Well))
-
-  # Remove Total Events (if it is in the dataset)
-  if("Total.Events" %in% names(plate_data)) {
-      plate_data <- plate_data %>%
-        select(-c(Total.Events))
-    }
-
-  ## Convert to long format to plot
-  bead_data <- plate_data %>%
-    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount")
-
-  bead_data$below_threshold <- bead_data$BeadCount < threshold
-
-  ## Plot
-  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
-    geom_line() +
-    geom_point(aes(color = below_threshold), size = 2) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
-    geom_hline(yintercept = threshold, linetype = "dashed") +
-    scale_x_discrete(breaks = x_breaks) +
-    labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
-    theme_minimal() +
-    theme(strip.text = element_text(size=20),
-          axis.text.y = element_text(size=15),
-          axis.text.x = element_text(hjust = 1, size=15), # angle = 45 (makes the label tilted if needing to fit for size)
-          axis.title = element_text(size = 18),
-          plot.title  = element_text(size = 20, face = "bold")) +
-    facet_wrap(~Antigen, scales = "free_y", ncol = 2)
-
-  # plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
-  # 
-  # return(plotly_obj)
-
-}
-
 ### ### ### ### ### ### ### ### ### #
 ##### "levey.jennings" function #####
 ### ### ### ### ### ### ### ### ### #
 
-levey.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
+levey.jennings <- function (data, std_label, blank_label, dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
 
   is.wholenumber <-
     function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) < tol
@@ -1458,6 +1474,32 @@ ag.column.add <- function(data,ag_mismatch) {
 ### ### ### ### ### ### ### 
 ##### Unused functions #####
 ### ### ### ### ### ### ### 
+
+bead.check <- function(data, min=30, ag_list) {
+
+  # Checks if bead counts fall below a specified threshold by antigen
+  # Prints list of samples per antigen
+    
+  for (i in ag_list) {
+    
+    bead_low <- which(data[,i]<min)
+    
+    if (length(bead_low)>0) {
+      
+      bead_low_table <- as.data.frame(cbind(as.character(data[bead_low,"Location"]),as.character(data[bead_low,"Sample"]),data[bead_low,i]))
+      names(bead_low_table) <- c("well","sample_id","beads")
+      
+      print(i)
+      print(bead_low_table)
+      
+    } else {
+      print(i)
+      print("All wells are above the minimum bead count for this antigen")
+    }
+    
+  }
+  
+}
 
 
 read.batch.test <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
