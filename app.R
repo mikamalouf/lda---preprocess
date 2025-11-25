@@ -25,12 +25,17 @@ intro_tab_ui <- function(){
         
         # Dilutions
         h3(tags$u("Dilutions")),
-        p("- dilutions should be formatted as 1/100, 1/200, etc.", style = "font-size:130%"),
-        p("- dilutions should be listed from highest to lowest.", style = "font-size:130%"),
-        p("- Correct example format: 1/3200, 1/1600...", style = "font-size:130%"),
-        
+          tags$li("Dilutions should be formatted with a dash. For example: 1/100", style = "font-size:130%"),
+          tags$li("Each dilution should be eperated by a comma and a space.", style = "font-size:130%"),
+          tags$li("Dilutions should be listed from highest to lowest.", style = "font-size:130%"),
+          tags$li("Correct example format: 1/3200, 1/1600, 1/800...", style = "font-size:130%"),
+          tags$li("Incorrect example format: 0.25, 100, ", style = "font-size:130%"),
+          
         # Standard curve
         h3(tags$u("Standard Curve")),
+          tags$li("Each standard curve should be seperated by a comma and a space.", style = "font-size:130%"),
+          tags$li("Please ensure that the standard curve input is in the correct capitalisation.", style = "font-size:130%"),
+          tags$li("Correct example format: P1, P2, P3, P4, P5, P6, P7, P8", style = "font-size:130%"),
         
         # Background samples
         h3(tags$u("Background samples"))
@@ -49,7 +54,7 @@ intro_tab_ui <- function(){
         ),
         
         # Intro to the app
-        p("Welcome to the Luminex Data Analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please read the variable input requirements before proceeding with the app.",
+        p("Welcome to the Luminex Data Analysis app. This app is designed to help you pre-process your raw MBA Luminex dataset into an analysable format. Please read the variable input requirements on the left panel before proceeding with the app.",
           style = "font-size:140%"),
         
         hr(),
