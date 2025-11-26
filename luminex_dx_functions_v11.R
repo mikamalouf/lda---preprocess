@@ -180,7 +180,7 @@ read.batch.std <- function(path, std_labels, inc_date = FALSE, inc_plate = FALSE
     colnames(dilution_section) <- plate_raw[dilution_row + 1, ]
     colnames(median_section)   <- plate_raw[median_row + 1, ]
     
-    # -------- Filter dilution rows based on std_labels --------
+    # Filter dilution rows based on std_labels
     # std_labels can be regex or exact names
     match_rows <- grepl(paste(std_labels, collapse = "|"), dilution_section[,2])
     
@@ -190,13 +190,13 @@ read.batch.std <- function(path, std_labels, inc_date = FALSE, inc_plate = FALSE
       next
     }
     
-    # -------- Keep only columns 3+ from median --------
+    # Keep only columns 3+ from median
     median_trim <- median_section[, c(1, 3:ncol(median_section)) ]
     
-    # -------- Merge on the first column --------
+    # Merge on the first column
     merged_df <- merge(dilution_filtered, median_trim, by = colnames(dilution_filtered)[1])
     
-    # -------- Convert numeric columns --------
+    #Convert numeric columns
     num_cols <- names(merged_df)[sapply(merged_df, function(x) all(grepl("^[0-9.]+$", x)))]
     merged_df[num_cols] <- lapply(merged_df[num_cols], as.numeric)
     
@@ -323,7 +323,7 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
   bead_data$below_threshold <- bead_data$BeadCount < threshold
   
   ## Plot
-  ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+  p <- ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
     geom_line() +
     geom_point(aes(color = below_threshold), size = 2) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
@@ -337,6 +337,8 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
           axis.title = element_text(size = 18),
           plot.title  = element_text(size = 20, face = "bold")) +
     facet_wrap(~Antigen, scales = "free_y", ncol = 2)
+  
+  return(p)
   
   # plotly_obj <- ggplotly(bead_plot) %>% layout(height = 1200)
   # 

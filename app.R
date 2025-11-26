@@ -224,7 +224,7 @@ bead_count_ui <- function() {
                                       choices = NULL)  # will populate dynamically in server
 
              ),
-             mainPanel(plotOutput("bead_count_plots", height = "1200px")))
+             mainPanel(plotlyOutput("bead_count_plots", height = "1200px")))
            )
 }
 
@@ -992,20 +992,22 @@ server <- function(input, output, session) {
     })
     
     # Generate low bead plot for each antigen
-    output$bead_count_plots <- renderPlot({
+    output$bead_count_plots <- renderPlotly({
       req(bead_data())
       req(input$plate_selection)
       
       plate_selected <- bead_data()$plates[[input$plate_selection]]
       
-      plot_beads_by_well(
+      p <- plot_beads_by_well(
         plate_selected,
         plate_name = input$plate_selection,
         threshold = bead_control$threshold
       )
+      
+      ggplotly(p, height = 1200, tooltip = c("Well", "BeadCount", "Antigen"))
     })
     
-    # Normalised Data & Plots
+  # Normalised Data & Plots
     ## Shows normalised matrix
     output$normalised_matrix<-renderTable({
         nd()$data[["MP01"]]
