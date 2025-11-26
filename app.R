@@ -25,11 +25,11 @@ intro_tab_ui <- function(){
         
         # Dilutions
         h3(tags$u("Dilutions")),
-          tags$li("Dilutions should be formatted with a dash. For example: 1/100", style = "font-size:130%"),
-          tags$li("Each dilution should be eperated by a comma and a space.", style = "font-size:130%"),
+          tags$li("Dilutions should be formatted with a dash. For example: 1/100, 1/50, 1/25", style = "font-size:130%"),
+          tags$li("Each dilution should be seperated by a comma and a space.", style = "font-size:130%"),
           tags$li("Dilutions should be listed from highest to lowest.", style = "font-size:130%"),
           tags$li("Correct example format: 1/3200, 1/1600, 1/800...", style = "font-size:130%"),
-          tags$li("Incorrect example format: 0.25, 100, ", style = "font-size:130%"),
+          tags$li("Incorrect example format: 0.25, 100, 1:200", style = "font-size:130%"),
           
         # Standard curve
         h3(tags$u("Standard Curve")),
@@ -97,7 +97,7 @@ upload_tab_ui<-function(){
             sidebarPanel("", width=3,
                          
                          # File Upload
-                         h5(strong("File upload"), style = "font-size:120%"),
+                         h3(strong("File upload"), style = "font-size:130%"),
                            
                            # Adds text
                            p("Upload your data using the file upload button below.", style = "font-size:120%"),
@@ -115,21 +115,22 @@ upload_tab_ui<-function(){
                            hr(),
                          
                          # Dilutions
-                         h5(strong("Dilutions"), style = "font-size:120%"),
+                         h3(strong("Dilutions"), style = "font-size:130%"),
+                         
+                           div(
+                             style = "font-size:120%;",
+                             textOutput("dilutions")
+                           ),
                          
                            # Adds a paragraph of text under the heading
-                           p(
-                             textOutput("dilutions"),
-                             textInput(inputId = "dilutionInput",label=""),
-                             actionButton("dilutionButton","Submit dilutions (comma seperated)"),
-                             style = "font-size:120%"
-                           ),
+                           textInput(inputId = "dilutionInput",label=""),
+                           actionButton("dilutionButton","Submit dilutions (comma seperated)"),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
       
                          # Standard curves
-                         h5(strong("Standard curve"), style = "font-size:120%"),
+                         h3(strong("Standard curve"), style = "font-size:130%"),
                          
                            # Adds a paragraph of text under the heading
                            p(
@@ -147,7 +148,7 @@ upload_tab_ui<-function(){
                          
                            # Adds a paragraph of text under the heading
                            p(
-                             textOutput("bkg_label"),
+                             uiOutput("bkg_label"),
                              textInput(inputId = "bkg_labelInput",label=""),
                              actionButton("bkg_labelButton","Submit Background samples"),
                              style = "font-size:120%"
@@ -183,8 +184,11 @@ upload_tab_ui<-function(){
               
               h5("Upload summary", style = "font-size:150%"),
               
-              # Adds text under the heading
-              p(tableOutput("upload_summary"), style = "font-size:150%"),
+              # Upload summary in the main space
+              div(
+                style = "font-size:150%;",
+                tableOutput("upload_summary")
+              ),
               
               fluidRow(
                 column(3, tableOutput("plate_table")),
@@ -227,22 +231,17 @@ bead_count_ui <- function() {
 
 std_curve_plots_ui <- function(){
     
-    tabPanel("Standard Curves", 
-        sidebarLayout(
-            sidebarPanel("", width=3,
-                
-                         p("Standard curves show MFI plotted against the log of the dilution. ", 
-                           "These plots can be used to determine the MFI of a sample at a ",
-                           "given dilution."
-                           )
-            ),
-            mainPanel(
-              DT::dataTableOutput("std_table_test")
-              #uiOutput("std_curve_plot")   
-              
-            )
+        tabPanel("Standard Curves",
+                 sidebarLayout(
+                   sidebarPanel(
+                     p("Standard curves show MFI plotted against the log of the dilution.", style="font-size:130%")
+                   ),
+                   mainPanel(
+                     DT::dataTableOutput("std_table"),      # show cleaned standard curve
+                     plotlyOutput("std_curve_plot")         # plot
+                   )
+                 )
         )
-    )
 
 }
 
@@ -493,16 +492,16 @@ server <- function(input, output, session) {
     observeEvent(input$std_labelButton, {
       
       # Parse user input: split by comma, trim whitespace
-      labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
+      std_labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
       
-      if(length(labels) > 0){
+      if(length(std_labels) > 0){
         # Combine into regex pattern
-        regex_pattern <- paste(labels, collapse = ",")
+        regex_pattern <- paste(std_labels, collapse = ",")
         std_label(regex_pattern)  # update reactiveVal
         
         # Update displayed text
         output$std_label <- renderText({
-          paste("The standard curve labels are now set to: ", paste(labels, collapse = ", "))
+          paste("The standard curve labels are now set to: ", paste(std_labels, collapse = ", "))
         })
       }
     })
@@ -510,20 +509,19 @@ server <- function(input, output, session) {
     #   std_label <- parse_dilution_string(input$std_labelInput)
     #   output$std_label <- renderText(paste("The standard curve labels are set to ", paste(std_label,collapse=", "),". You can update this here."))
     # })
-    
-    cleaned_data <- reactive({
-      req(input$fileUpload)  # make sure a file is uploaded
-      files <- input$fileUpload$datapath
-      
-      # Call your read.batch.std function
-      read.batch.std(path = dirname(files[1]), std_label = std_label)
-    })
    
     
   # Set up background values 
     bkg_label <- ("(blank|background)") # contains any cell that has blank or background
     
-    output$bkg_label <- renderText({paste("The default background samples are set to variables that contain <i>blank</i> or <i>background</i>. If your background samples are labelled differently, then you can manually update this here. Please seperate each background sample name with a comma.")})
+    output$bkg_label <- renderUI({
+      HTML(paste0(
+        "The default background samples are set to variables that contain ",
+        "<i>blank</i> or <i>background</i>. ",
+        "If your background samples are labelled differently, then you can manually update this here. ",
+        "Please separate each background sample name with a comma."
+      ))
+    })
     
     # Update bkg_label interactively (flexibility)
     observeEvent(input$bkg_labelButton, {
@@ -638,23 +636,73 @@ server <- function(input, output, session) {
     
     # Data preparation - standard curve
     std_curve_data <- reactive({
-      req(input$std_labelInput)   # ensures input is not NULL
       
-      # Parse and clean user input
-      std_labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
+      req(input$fileUpload)
       
-      # Filter standard rows dynamically
-      std_rows <- d()$combinedplates$Sample %in% std_labels
-      standard_data <- d()$combinedplates[std_rows, ]
+      raw_data_path <- dirname(input$fileUpload$datapath[1])
+      plate_lab <- tools::file_path_sans_ext(input$fileUpload$name)
       
-      # Pass filtered data to get.standard
-      get.standard(
-        data = standard_data,
-        std_label = NULL,          # no need, data is already filtered
-        dilutions = user_dilutions(),
-        n_points = length(std_labels)
+      std_labels <- if (input$std_labelInput == "") {
+        c("CP3", "Std Curve", "WHO")
+      } else {
+        trimws(unlist(strsplit(input$std_labelInput, ",")))
+      }
+      
+      std_data <- list()
+      
+      std_data$plates <- read.batch.std(
+        path = raw_data_path,
+        std_label = std_labels,
+        inc_date = TRUE,
+        inc_plate = TRUE
       )
+      
+      # Validity check
+      if (length(std_data$plates) == 0) {
+        stop("No standard curve plates could be extracted.")
+      }
+      
+      names(std_data$plates) <- plate_lab
+      
+      std_data$combinedplates <- join.plates(std_data$plates)
+      std_data$combinedplates <- na.omit(std_data$combinedplates)
+      
+      for (i in seq_along(std_data$plates)) {
+        std_data$plates[[i]] <- na.omit(std_data$plates[[i]])
+      }
+      
+      std_data$ags <- colnames(std_data$combinedplates)[3:ncol(std_data$combinedplates)]
+      
+      std_data$datesplates <- read.batch(path = raw_data_path,
+                                         inc_date = TRUE,
+                                         inc_plate = TRUE)
+      std_data$combineddatesplates <- join.plates(std_data$datesplates)
+      
+      std_data$platenames <- names(std_data$plates)
+      std_data$numplates <- length(std_data$platenames)
+      
+      std_data
     })
+      
+    
+    # std_curve_data <- reactive({
+    #   req(input$std_labelInput)   # ensures input is not NULL
+    #   
+    #   # Parse and clean user input
+    #   std_labels <- trimws(unlist(strsplit(input$std_labelInput, ",")))
+    #   
+    #   # Filter standard rows dynamically
+    #   std_rows <- d()$combinedplates$Sample %in% std_labels
+    #   standard_data <- d()$combinedplates[std_rows, ]
+    #   
+    #   # Pass filtered data to get.standard
+    #   get.standard(
+    #     data = standard_data,
+    #     std_label = std_labels(),  # character vector
+    #     dilutions = dilutions(),
+    #     n_points = length(std_labels())
+    #   )
+    # })
 ## MIKA NOTES - MAYBE MAKE DATASET WHERE FIRST COLUMN IS THE STD CURVE VARIABLE, SECOND IS THE DILUTION AND THEN MERGE THAT WITH THE MEDIAN MFI TABLE FOR ALL TESTED ANTIGENS
 
   
@@ -828,24 +876,23 @@ server <- function(input, output, session) {
     })
 
     # Standard Curves
-    output$cleaned_table <- DT::renderDataTable({
-      req(all_std_data())
-      DT::datatable(
-        all_std_data(),
-        options = list(pageLength = 10, scrollX = TRUE),
-        rownames = FALSE
-      )
+    output$std_table <- DT::renderDataTable({
+      req(std_curve_data())
+      DT::datatable(std_curve_data()$plates[[1]], options=list(pageLength=10, scrollX=TRUE))
     })
     
     
     output$std_curve_plot <- renderPlotly({
       req(std_curve_data())
       
+      plate_selected <- std_curve_data()$plates[[input$plate_selection]]
+      
       plot.std.curve3_interactive(
-        data = list(std_curve_data()),
-        antigen = ag(),        
-        dilutions = user_dilutions(),
-        plate_labels = input$std_curve_input
+        data = std_curve_data()$plates,
+        antigen = ag(),       # your selected antigen
+        plate_selected,
+        std_label = std_labels, 
+        dilutions = dilutions()
       )
     })
           # ORIGINAL CODE
