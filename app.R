@@ -25,7 +25,7 @@ intro_tab_ui <- function(){
         
         # Dilutions
         h3(tags$u("Dilutions")),
-          tags$li("Dilutions should be formatted with a dash. For example: 1/100, 1/50, 1/25", style = "font-size:130%"),
+          tags$li("Dilutions should be formatted with a dash. For example: 1/100, 1/50, 1/25..", style = "font-size:130%"),
           tags$li("Each dilution should be seperated by a comma and a space.", style = "font-size:130%"),
           tags$li("Dilutions should be listed from highest to lowest.", style = "font-size:130%"),
           tags$li("Correct example format: 1/3200, 1/1600, 1/800...", style = "font-size:130%"),
@@ -82,6 +82,11 @@ intro_tab_ui <- function(){
         
         hr(),
         
+        # Data Storage
+        h2(strong("Data Storage")),
+        
+        hr(),
+        
         # Contact information
         h2(strong("Contact"))
       )
@@ -124,35 +129,37 @@ upload_tab_ui<-function(){
                          
                            # Adds a paragraph of text under the heading
                            textInput(inputId = "dilutionInput",label=""),
-                           actionButton("dilutionButton","Submit dilutions (comma seperated)"),
+                           actionButton("dilutionButton","Submit dilutions"),
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
       
                          # Standard curves
-                         h3(strong("Standard curve"), style = "font-size:130%"),
+                         h3(strong("Standard Curve"), style = "font-size:130%"),
                          
-                           # Adds a paragraph of text under the heading
-                           p(
-                             textOutput("std_label"),
-                             textInput(inputId = "std_labelInput",label=""),
-                             actionButton("std_labelButton","Submit standard curves"),
-                             style = "font-size:120%"
+                           div(
+                             style = "font-size:120%;",
+                             textOutput("std_label")
                            ),
+                           
+                           # Adds a paragraph of text under the heading
+                           textInput(inputId = "std_labelInput", label=""),
+                           actionButton("std_labelButton","Submit standard curves"),  
                            
                            # Inserts a horizontal line (a divider in the UI)
                            hr(),
                          
                          # Background
                          h5(strong("Background samples"), style = "font-size:120%"),
-                         
+                        
+                           div(
+                             style = "font-size:120%;",
+                             textOutput("bkg_label")
+                           ),
+                           
                            # Adds a paragraph of text under the heading
-                           p(
-                             uiOutput("bkg_label"),
-                             textInput(inputId = "bkg_labelInput",label=""),
-                             actionButton("bkg_labelButton","Submit Background samples"),
-                             style = "font-size:120%"
-                           )
+                           textInput(inputId = "bkg_labelInput", label=""),
+                           actionButton("bkg_labelButton","Submit background samples")  
             ),
       
                          
@@ -191,8 +198,8 @@ upload_tab_ui<-function(){
               ),
               
               fluidRow(
-                column(3, tableOutput("plate_table")),
-                column(3, tableOutput("antigen_table"))
+                column(3, style = "font-size:130%;", tableOutput("plate_table")),
+                column(3, style = "font-size:130%;", tableOutput("antigen_table"))
             )
         )
   )
@@ -593,6 +600,7 @@ server <- function(input, output, session) {
     
     # Data preparation beads - Reactive for bead count
     bead_data <- reactive({
+        
         # Make sure a file has been uploaded
         req(input$fileUpload)
         
@@ -605,24 +613,24 @@ server <- function(input, output, session) {
         bead_data$rawdatapath <- raw_data_path
         bead_data$uploadedfilenumber <- nrow(input$fileUpload)
         
-        ## Load batch data from the uploaded files
-        bead_data$plates <- read.batch.beads(path = raw_data_path)
+          ## Load batch data from the uploaded files
+          bead_data$plates <- read.batch.beads(path = raw_data_path)
         
-        ## Assign user-friendly names to the plates
-        names(bead_data$plates) <- plate_lab
+          ## Assign user-friendly names to the plates
+          names(bead_data$plates) <- plate_lab
         
         # Join plates
-        ## Store metadata: plate names, number of plates
-        bead_data$platenames <- names(bead_data$plates)
-        bead_data$numplates <- length(bead_data$platenames)
-        
-        ## Combine plates into one dataset
-        bead_data$combinedplates <- join.plates(bead_data$plates)
-        
-        ## Skip NAs
-        bead_data$combinedplates <- na.omit(bead_data$combinedplates)
-        for (i in seq_along(bead_data$plates)){
-          bead_data$plates[[i]] <- na.omit(bead_data$plates[[i]])
+          ## Store metadata: plate names, number of plates
+          bead_data$platenames <- names(bead_data$plates)
+          bead_data$numplates <- length(bead_data$platenames)
+          
+          ## Combine plates into one dataset
+          bead_data$combinedplates <- join.plates(bead_data$plates)
+          
+          ## Skip NAs
+          bead_data$combinedplates <- na.omit(bead_data$combinedplates)
+          for (i in seq_along(bead_data$plates)){
+            bead_data$plates[[i]] <- na.omit(bead_data$plates[[i]])
         }
         
         ## Extracts antigen names (columns 3 onward = data columns)
@@ -635,26 +643,31 @@ server <- function(input, output, session) {
         })
     
     # Data preparation - standard curve
-    std_curve_data <- reactive({
+    std_data <- reactive({
       
+      # Make sure a file has been uploaded
       req(input$fileUpload)
       
-      raw_data_path <- dirname(input$fileUpload$datapath[1])
-      plate_lab <- tools::file_path_sans_ext(input$fileUpload$name)
+      # Extract the folder path and the file label, drop .csv extension
+      raw_data_path <- dirname(input$fileUpload[1,"datapath"])
+      plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
       
+      # Define std_label as default values or user assigned
       std_labels <- if (input$std_labelInput == "") {
         c("CP3", "Std Curve", "WHO")
       } else {
         trimws(unlist(strsplit(input$std_labelInput, ",")))
       }
       
-      std_data <- list()
+      # Reading uploaded data
+      std_data = list()
+      std_data$rawdatapath <- raw_data_path
+      std_data$uploadedfilenumber <- nrow(input$fileUpload)
       
+      ## Load batch data from the uploaded files
       std_data$plates <- read.batch.std(
         path = raw_data_path,
-        std_label = std_labels,
-        inc_date = TRUE,
-        inc_plate = TRUE
+        std_label = std_labels
       )
       
       # Validity check
@@ -662,7 +675,9 @@ server <- function(input, output, session) {
         stop("No standard curve plates could be extracted.")
       }
       
+      ## Assign user-friendly names to the plates
       names(std_data$plates) <- plate_lab
+      
       
       std_data$combinedplates <- join.plates(std_data$plates)
       std_data$combinedplates <- na.omit(std_data$combinedplates)
@@ -673,6 +688,8 @@ server <- function(input, output, session) {
       
       std_data$ags <- colnames(std_data$combinedplates)[3:ncol(std_data$combinedplates)]
       
+      
+      ## Metadata with dates - include date & plate info 
       std_data$datesplates <- read.batch(path = raw_data_path,
                                          inc_date = TRUE,
                                          inc_plate = TRUE)
@@ -764,7 +781,7 @@ server <- function(input, output, session) {
         }
       })
       
-      # Update plate selection dropdown
+      ## Update plate selection dropdown
       observe({
         req(bead_data())
         updateSelectInput(
@@ -876,25 +893,48 @@ server <- function(input, output, session) {
     })
 
     # Standard Curves
-    output$std_table <- DT::renderDataTable({
-      req(std_curve_data())
-      DT::datatable(std_curve_data()$plates[[1]], options=list(pageLength=10, scrollX=TRUE))
-    })
-    
-    
-    output$std_curve_plot <- renderPlotly({
-      req(std_curve_data())
+      output$std_table <- DT::renderDataTable({
+        req(std_data())
+        DT::datatable(std_data()$plates[[1]], options=list(pageLength=10, scrollX=TRUE))
+      })
       
-      plate_selected <- std_curve_data()$plates[[input$plate_selection]]
       
-      plot.std.curve3_interactive(
-        data = std_curve_data()$plates,
-        antigen = ag(),       # your selected antigen
-        plate_selected,
-        std_label = std_labels, 
-        dilutions = dilutions()
-      )
-    })
+      output$std_curve_plot <- renderPlotly({
+        req(std_data())
+        
+        plate_selected <- std_data()$plates[[input$plate_selection]]
+        
+        p <- plot.std.curve3_interactive(
+          data = std_data()$plates,
+          antigen = ag(), 
+          plate_selected,
+          dilutions = dilutions()
+        )
+        
+        ggplotly(p, height = 1200, tooltip = c("Well", "MFI"))
+      })
+      
+      # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
+      output$std_curve_plate_selection <- renderUI({
+        selectizeInput(
+          inputId="std_curve_input",
+          label="Select plates (max 5)",
+          choices=d()$platenames,
+          selected = NULL,
+          multiple=TRUE,
+          options = list(maxItems = 5) ) # Can remove this if we want unlimited plate selection
+      })
+    # # Update plate selection dropdown
+    #   observe({
+    #     req(std_data())
+    #     updateSelectInput(
+    #       session,
+    #       "plate_selection",
+    #       choices = names(std_data()$plates),
+    #       selected = names(std_data()$plates)[1]
+    #     )
+    #   })
+      
           # ORIGINAL CODE
           # output$std_curves <- renderUI({
           #     req(input$fileUpload)
@@ -927,16 +967,7 @@ server <- function(input, output, session) {
           #         }) )
           # })
       
-          # Allow user to select up to 5 plates for comparison (compare standard curves visually) 
-          output$std_curve_plate_selection <- renderUI({
-              selectizeInput(
-                  inputId="std_curve_input",
-                  label="Select plates (max 5)",
-                  choices=d()$platenames,
-                  selected = NULL,
-                  multiple=TRUE,
-                  options = list(maxItems = 5) ) # Can remove this if we want unlimited plate selection
-          })
+          
 
     # QC
     ## Levey-Jennings controls for tracking high, mid, and low dilution points across plates
@@ -1004,7 +1035,7 @@ server <- function(input, output, session) {
         threshold = bead_control$threshold
       )
       
-      ggplotly(p, height = 1200, tooltip = c("Well", "BeadCount", "Antigen"))
+      ggplotly(p, height = 1200, tooltip = c("Well", "BeadCount"))
     })
     
   # Normalised Data & Plots
