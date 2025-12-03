@@ -150,7 +150,7 @@ upload_tab_ui<-function(){
                            hr(),
                          
                          # Background
-                         h3(strong("Background samples"), style = "font-size:120%"),
+                         h3(strong("Background samples"), style = "font-size:130%"),
                         
                            div(
                              style = "font-size:120%;",
@@ -165,16 +165,16 @@ upload_tab_ui<-function(){
                            hr(),
                          
                          # Controls
-                         h3(strong("Control samples (optional"), style = "font-size:120%"),
+                         h3(strong("Control samples (optional)"), style = "font-size:130%"),
                          
                            div(
                              style = "font-size:120%;",
-                             textOutput("Controls")
+                             textOutput("samples")
                            ),
                            
                            # Adds a paragraph of text under the heading
                            textInput(inputId = "controlInput", label=""),
-                           actionButton("controlButton","Submit control samples"),
+                           actionButton("sampleButton","Submit control samples"),
                          
                            # Inserts a horizontal line (a divider in the UI)
                            hr()
@@ -511,7 +511,7 @@ server <- function(input, output, session) {
   # Set up standard curves
     std_label <- reactiveVal("(CP3|Std Curve|WHO)")
     
-    output$std_label <- renderText({paste("The default Standard Curves are set to variables that contain CP3, Std Curve, WHO. If you have your own standard curves, then you can manually update this here. Please seperate the standard curves with a comma.")})
+    output$std_label <- renderText({paste("The default Standard Curves are set to variables that contain CP3, Std Curve, WHO. If you have your own standard curves, then you can manually update this here. Please separate the standard curves with a comma.")})
     
     # Update std_label interactively (flexibility)
     observeEvent(input$std_labelButton, {
@@ -521,7 +521,7 @@ server <- function(input, output, session) {
       
       if(length(std_labels) > 0){
         # Combine into regex pattern
-        regex_pattern <- paste(std_labels, collapse = ",")
+        regex_pattern <- paste(std_labels, collapse = "|")
         std_label(regex_pattern)  # update reactiveVal
         
         # Update displayed text
@@ -671,11 +671,11 @@ server <- function(input, output, session) {
       plate_lab <- substr(input$fileUpload$name,1,nchar(input$fileUpload$name)-4)
       
       # Define std_label as default values or user assigned
-      std_labels <- if (input$std_labelInput == "") {
-        c("CP3", "Std Curve", "WHO")
-      } else {
-        trimws(unlist(strsplit(input$std_labelInput, ",")))
-      }
+        # std_labels <- if (input$std_labelInput == "") {
+        #   c("CP3", "Std Curve", "WHO")
+        # } else {
+        #   trimws(unlist(strsplit(input$std_labelInput, ",")))
+        # }
       
       # Reading uploaded data
       std_data = list()
@@ -685,7 +685,7 @@ server <- function(input, output, session) {
       ## Load batch data from the uploaded files
       std_data$plates <- read.batch.std(
         path = raw_data_path,
-        std_label = std_labels
+        std_labels = std_label()
       )
       
       # Validity check
