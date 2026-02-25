@@ -114,6 +114,47 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
 }
 
+### ### ### ### ### ### ### ### ### ###
+##### "read.batch.std_v2" function #####
+### ### ### ### ### ### ### ### ### ###
+read.batch.std_v2 <- function (path, inc_date=F,inc_plate=F) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+    section1 <- grep("Median",plate[[i]]$Sample)[1]
+    section2 <- grep("Count",plate[[i]]$Sample)[1]
+    
+    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
+    
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+    }
+    
+    if (inc_plate==T) {
+      plate[[i]]$plate <- i
+      
+    }
+  }
+  
+  names(plate) <- plate_lab
+  
+  return(plate)
+  
+}
+
 ### ### ### ### ### ### ### ### ### #
 ##### "read.batch.std" function #####
 ### ### ### ### ### ### ### ### ### #
@@ -125,237 +166,89 @@ read.batch.std <- function(path, std_labels, inc_date = FALSE, inc_plate = FALSE
   plate_lab <- substr(temp, 1, nchar(temp) - 4)
   plate <- list()
   
-  for (i in 1:length(temp)) {
+  for(i in 1:length(temp)) { 
     
-    ### --- Read raw file ---
-    plate_raw <- read.csv(temp[i], stringsAsFactors = FALSE)
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1) # original code
+    #plate[[i]] <- read.csv(temp[i], skip=startrow)
     
-    ### --- Find first DataType row ---
-    startrow <- grep("DataType", plate_raw[,1])[1]
-    dat <- read.csv(temp[i], skip = startrow, stringsAsFactors = FALSE)
+    # Normalize column names
+    names(plate[[i]]) <- trimws(names(plate[[i]]))
     
-    ### Remove empty last column if present
-    if (ncol(dat) > 1 && all(dat[, ncol(dat)] == "")) {
-      dat <- dat[, -ncol(dat)]
+    sample_col <- grep("Sample", names(plate[[i]]), ignore.case = TRUE, value = TRUE)
+    
+    if (length(sample_col) == 0) {
+      stop(paste("Plate", i, ": no Sample column found"))
     }
     
-    ### --- Find all DataType section headers in main data ---
-    dt_rows <- grep("DataType", dat[,1])
+    sample_col <- sample_col[1]
+    plate[[i]]$Sample <- trimws(as.character(plate[[i]][[sample_col]]))
     
-    ### Identify Dilution and Median section headers
-    dil_row <- dt_rows[grep("dilution", dat[dt_rows,2], ignore.case = TRUE)[1]]
-    med_row <- dt_rows[grep("median",   dat[dt_rows,2], ignore.case = TRUE)[1]]
+    section1 <- grep("^\\s*Median\\b", trimws(plate[[i]]$Sample), ignore.case = TRUE)
+    section1_end <- grep("Net MFI", plate[[i]]$Sample, ignore.case = TRUE)
     
-    if (is.na(dil_row) | is.na(med_row)) {
-      warning(paste("Cannot find Dilution or Median sections in file:", temp[i]))
-      plate[[i]] <- NULL
-      next
+    section2 <- grep("Dilution Factor", plate[[i]]$Sample, ignore.case = TRUE)
+    section2_end <- grep("Analysis Types", plate[[i]]$Sample, ignore.case = TRUE)
+    
+    if (length(section1) == 0 || length(section1_end) == 0 ||
+        length(section2) == 0 || length(section2_end) == 0) {
+      stop(paste("Plate", i, ": standard curve sections not found"))
     }
     
-    ### Determine the next section after each
-    dt_after_dil <- dt_rows[dt_rows > dil_row][1]
-    dt_after_med <- dt_rows[dt_rows > med_row][1]
+    # ONLY NOW take the first index
+    section1 <- section1[1]
+    section1_end <- section1_end[1]
+    section2 <- section2[1]
+    section2_end <- section2_end[1]
     
-    if (is.na(dt_after_dil)) dt_after_dil <- nrow(dat) + 1
-    if (is.na(dt_after_med)) dt_after_med <- nrow(dat) + 1
+    # Create Median and Dilution data blocks
+    plate_i_Median <- plate[[i]][(section1 + 2):(section1_end - 2), -ncol(plate[[i]])]
+    plate_i_dilution <- plate[[i]][(section2 + 2):(section2_end - 2), -ncol(plate[[i]])]
     
-    ### --- Extract dilution section ---
-    dil_section <- dat[(dil_row + 1):(dt_after_dil - 1), ]
+    # Create regex pattern from user input
+    pattern <- paste(std_labels, collapse = "|")
+
+    # Filter rows in both datasets to only contain manual std values
+    plate_i_Median  <- plate_i_Median[grepl(pattern, plate_i_Median$Sample, ignore.case = TRUE), ]
+    plate_i_dilution <- plate_i_dilution[grepl(pattern, plate_i_dilution$Sample, ignore.case = TRUE), ]
+
+
+    # Make first 2 columns character and the rest numeric for both datasets
+    plate_i_Median[, 1:2] <- lapply(plate_i_Median[, 1:2],as.character)
+    plate_i_Median[,3:ncol(plate_i_Median)] <- lapply(plate_i_Median[,3:ncol(plate_i_Median)],as.numeric)
+
+    plate_i_dilution[, 1:2] <- lapply(plate_i_dilution[, 1:2],as.character)
+    plate_i_dilution[,3:ncol(plate_i_dilution)] <- lapply(plate_i_dilution[,3:ncol(plate_i_dilution)],as.numeric)
     
-    ### --- Extract median section ---
-    med_section <- dat[(med_row + 1):(dt_after_med - 1), ]
+    # Combine datasets into main dataset
+    plate_i_combined <- merge(
+      plate_i_Median, 
+      plate_i_dilution, 
+      by = c("Sample"), 
+      all.x = TRUE
+    )
     
-    ### --- Filter both sections by std_labels (2nd column) ---
-    std_regex <- paste(std_labels, collapse = "|")
+    # Save as plate[[i]]
+    plate[[i]] <- plate_i_combined
     
-    dil_section <- dil_section[grepl(std_regex, dil_section[,2]), ]
-    med_section <- med_section[grepl(std_regex, med_section[,2]), ]
-    
-    if (nrow(dil_section) == 0 || nrow(med_section) == 0) {
-      warning(paste("No rows matching std_labels in file:", temp[i]))
-      plate[[i]] <- NULL
-      next
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
     }
     
-    ### --- Convert numeric columns ---
-    if (ncol(dil_section) > 2)
-      dil_section[, 3:ncol(dil_section)] <- sapply(dil_section[, 3:ncol(dil_section)], as.numeric)
-    
-    if (ncol(med_section) > 2)
-      med_section[, 3:ncol(med_section)] <- sapply(med_section[, 3:ncol(med_section)], as.numeric)
-    
-    ### --- Merge on first two columns (same as other functions' style) ---
-    merge_cols <- intersect(names(dil_section), names(med_section))[1:2]
-    
-    merged <- merge(dil_section, med_section, by = merge_cols, all.x = TRUE)
-    
-    ### --- Add date ---
-    if (inc_date == TRUE) {
-      merged$date <- lubridate::mdy(plate_raw[grep("Date", plate_raw[,1]), 2])
+    if (inc_plate==T) {
+      plate[[i]]$plate <- i
+      
     }
-    
-    ### --- Add plate number ---
-    if (inc_plate == TRUE) {
-      merged$plate <- i
-    }
-    
-    plate[[i]] <- merged
   }
-  
+    
   names(plate) <- plate_lab
+  
   return(plate)
+  
 }
-
-          # read.batch.std <- function(path, std_labels, inc_date = FALSE, inc_plate = FALSE) {
-          # 
-          #   setwd(path)
-          #   temp <- list.files(pattern = "*.csv")
-          #   plate_lab <- substr(temp, 1, nchar(temp) - 4)
-          #   plate <- list()
-          # 
-          #   for(i in 1:length(temp)) {
-          # 
-          #     # Read full file
-          #     plate_raw <- read.csv(temp[i])
-          # 
-          #     # Locate main "DataType" row
-          #     startrow <- grep("DataType", plate_raw[,1])[1]
-          #     plate[[i]] <- read.csv(temp[i], skip=startrow+1)
-          # 
-          #     # Identify Dilution + Median sections
-          #       dt_rows <- grep("DataType", plate[[i]][,1])
-          #       dil_row <- dt_rows[ grep("Dilution Factor", plate[[i]][dt_rows, 2], ignore.case = TRUE)[1] ]
-          #       med_row <- dt_rows[ grep("Median",   plate[[i]][dt_rows, 2], ignore.case = TRUE)[1] ]
-          #       # dilution_row <- grep("dilution",  plate[[i]][(startrow+1):nrow( plate[[i]]), 1], ignore.case = TRUE)[1]
-          #       # median_row   <- grep("median",  plate[[i]][(startrow+1):nrow( plate[[i]]), 1], ignore.case = TRUE)[1]
-          # 
-          #     # Extract Dilution section
-          #       next_dt_after_dil <- dt_rows[dt_rows > dil_row][1]
-          #       dil_section <- dat[(dil_row + 1):(next_dt_after_dil - 1), ]
-          #       # dilution_row <- dilution_row + startrow
-          #       # median_row   <- median_row + startrow
-          # 
-          #     # Extract dilution and median sections
-          #       next_dt_after_med <- dt_rows[dt_rows > med_row][1]
-          #       med_section <- dat[(med_row + 1):(next_dt_after_med - 1), ]
-          #       # dilution_section <-  plate[[i]][(dilution_row + 1):(median_row - 1), ]
-          #       # median_section   <-  plate[[i]][(median_row + 1):nrow( plate[[i]]),   ]
-          #       
-          #     # Numeric columns
-          #       dil_section[,3:ncol(dil_section)] <- sapply(dil_section[,3:ncol(dil_section)], as.numeric)
-          #       med_section[,3:ncol(med_section)] <- sapply(med_section[,3:ncol(med_section)], as.numeric)
-          #     # Reassign column names from the row immediately after section header
-          #     colnames(dilution_section) <-  plate[[i]][dilution_row + 1, ]
-          #     colnames(median_section)   <-  plate[[i]][median_row + 1, ]
-          # 
-          #     # Filter dilution rows based on std_labels
-          #     # std_labels can be regex or exact names
-          #     match_rows <- grepl(paste(std_labels, collapse = "|"), dilution_section[,2])
-          # 
-          #     dilution_filtered <- dilution_section[match_rows, ]
-          #     if (nrow(dilution_filtered) == 0) {
-          #       warning("No rows matching std_labels found in file: ", temp[i])
-          #       next
-          #     }
-          # 
-          #     # Keep only columns 3+ from median
-          #     median_trim <- median_section[, c(1, 3:ncol(median_section)) ]
-          # 
-          #     # Merge on the first column
-          #     merged_df <- merge(dilution_filtered, median_trim, by = colnames(dilution_filtered)[1])
-          # 
-          #     #Convert numeric columns
-          #     num_cols <- names(merged_df)[sapply(merged_df, function(x) all(grepl("^[0-9.]+$", x)))]
-          #     merged_df[num_cols] <- lapply(merged_df[num_cols], as.numeric)
-          # 
-          # 
-          #     if (inc_date==T) {
-          #       plate[[i]]$date <-  plate[[i]][grep("Date", plate[[i]][,1]),2]
-          #       plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
-          #     }
-          # 
-          #     if (inc_plate==T) {
-          #       plate[[i]]$plate <- i
-          # 
-          #     }
-          # 
-          #     plate[[i]] <- merged_df
-          #   }
-          # 
-          #   # Assign plate names
-          #   names(plate) <- plate_lab
-          #   return(plate)
-          # }
-
-    #     # Identify sections
-    #     section1 <- grep("Dilution", plate[[i]]$Sample)
-    #     section2 <- grep("Median", plate[[i]]$Sample)
-    #     section3 <- grep("Avg Net MFI",plate[[i]]$Sample[1])
-    #     
-    #     # Subset rows in the dilution-to-median section
-    #     plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
-    #     
-    #     # Keep only standard curve rows
-    #     plate[[i]] <- plate[[i]][plate[[i]]$Sample %in% std_label, ]
-    #     
-    #     # Convert numeric columns
-    #     plate[[i]][, 3:ncol(plate[[i]])] <- sapply(plate[[i]][, 3:ncol(plate[[i]])], as.numeric)
-    #     
-    #     if (inc_date) {
-    #       plate[[i]]$date <- as.Date(plate_raw[grep("Date", plate_raw[,1]),2], format="%m/%d/%Y")
-    #     }
-    #     if (inc_plate) {
-    #       plate[[i]]$plate <- i
-    #     }
-    # 
-    #   }
-    #   
-    #   names(plate) <- plate_lab
-    #   return(plate)
-    # }
-
-# Potential code/old code
-      # read.batch.std <- function (path, std_label, inc_date=F, inc_plate=F) {
-      #   
-      #   setwd(path)
-      #   temp <- list.files(pattern="*.csv")
-      #   plate_lab <- substr(temp,1,nchar(temp)-4)
-      #   plate <- list()
-      #   
-      #   # Split std_label input into vector (handles comma + space)
-      #   std_labels <- trimws(unlist(strsplit(std_label, ",")))
-      #   
-      #   for(i in 1:length(temp)) { 
-      #     
-      #     plate_raw <- read.csv(temp[i])
-      #     startrow <- grep("DataType",plate_raw[,1])[1]
-      #     plate[[i]] <- read.csv(temp[i], skip=startrow+1)
-      #     
-      #     section1 <- grep("Dilution Factor",plate[[i]]$Sample)
-      #     section2 <- grep("Median",plate[[i]]$Sample)
-      # 
-      #     plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
-      #     
-      #     plate[[i]] <- plate[[i]][plate[[i]]$Sample %in% std_labels, ]
-      #     
-      #     #plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
-      #     plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
-      #     
-      #     if (inc_date==T) {
-      #       plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
-      #       plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
-      #     }
-      #     
-      #     if (inc_plate==T) {
-      #       plate[[i]]$plate <- i }
-      #     
-      #   }
-      #   
-      #   names(plate) <- plate_lab
-      #   
-      #   return(plate)
-      #   
-      # }
+    
 
 ### ### ### ### ### ### ### ### ##
 ##### "join.plates" function #####
@@ -425,7 +318,8 @@ plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$
           axis.text.y = element_text(size=15),
           axis.text.x = element_text(hjust = 1, size=15), # angle = 45 (makes the label tilted if needing to fit for size)
           axis.title = element_text(size = 18),
-          plot.title  = element_text(size = 20, face = "bold")) +
+          plot.title  = element_text(size = 20, face = "bold"),
+          legend.position="none") + # Remove legend
     facet_wrap(~Antigen, scales = "free_y", ncol = 2)
   
   return(p)
