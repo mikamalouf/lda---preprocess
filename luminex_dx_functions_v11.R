@@ -6,6 +6,8 @@ require(mixtools)
 require(scales)
 library(RColorBrewer)
 library(plotly)
+library(lubridate)
+library(tidyr)
 
 split_to_list<-function(input,size){
   containers<-list()
@@ -20,62 +22,17 @@ split_to_list<-function(input,size){
 }
 
 
-###############################
-#### "read.plate" function ####
-###############################
+### ### ### ### ### ### ### ### #
+##### "read.batch" function #####
+### ### ### ### ### ### ### ### #
 
-# Reads raw csv file from XPonent software
+# Reads raw csv file from xPONENT software
 # Removes header rows
 # Keeps only median MFI values
 # Removes last column "Total.Events"
 # Ensures all MFI values are in numeric format
 
-read.plate <- function (path,file_name,inc_date=F) {
-
-  data_raw <-  read.csv(paste0(path,file_name))
-  startrow <- grep("DataType",data_raw[,1])[1]
-  data <- read.csv(paste0(path,file_name), skip=startrow+1)
-  
-  section <- grep("1,",data$Location, invert=T)[1]
-  
-  data <- data[1:(section-1),-ncol(data)]
-  
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
-  
-  if (inc_date==T) {
-    data$date <- data_raw[grep("Date",data_raw[,1]),2]
-    data$date <- as.Date(data$date,"%m/%d/%Y")
-  }
-  
-  return(data)
-
-}
-
-read.plate.beads <- function (path,file_name,inc_date=F) {
-  
-  data_raw <-  read.csv(paste0(path,file_name))
-  startrow <- grep("DataType",data_raw[,1])[1]
-  data <- read.csv(paste0(path,file_name), skip=startrow+1)
-  
-  section1 <- grep("Count",data$Sample)[1]
-  section2 <- grep("Avg Net MFI",data$Sample)
-  
-  data <- data[(section1+2):(section2-2),-ncol(data)]
-  
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
-  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
-  
-  if (inc_date==T) {
-    data$date <- data_raw[grep("Date",data_raw[,1]),2]
-    data$date <- as.Date(data$date,"%m/%d/%Y")
-  }
-  
-  return(data)
-  
-}
-
-read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
+read.batch <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
 
   setwd(path)
   temp <- list.files(pattern="*.csv")
@@ -95,8 +52,8 @@ read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
     plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
 
     if (inc_date==T) {
-      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
-      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+      # This line of code reads in the date, but uses the package lubridate to make the date format ok with multiple date types as long as it is m/d/y
+      plate[[i]]$date <- lubridate::mdy(plate_raw[grep("Date", plate_raw[,1]), 2])
     }
     
     if (inc_plate==T) plate[[i]]$plate <- i
@@ -115,6 +72,10 @@ read.batch <- function (path,inc_date=F,inc_plate=F,save_path=NULL) {
   
 }
 
+
+### ### ### ### ### ### ### ### ### ###
+##### "read.batch.beads" function #####
+### ### ### ### ### ### ### ### ### ###
 read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
   setwd(path)
@@ -136,15 +97,15 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
     plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
     plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
     
-    plate_raw <- read.csv(temp[i])
-    
     if (inc_date==T) {
       plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
       plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
     }
     
-    if (inc_plate==T) plate[[i]]$plate <- i
+    if (inc_plate==T) {
+      plate[[i]]$plate <- i
     
+    }
   }
   
   names(plate) <- plate_lab
@@ -153,39 +114,147 @@ read.batch.beads <- function (path,inc_date=F,inc_plate=F) {
   
 }
 
-###############################
-#### "bead.check" function ####
-###############################
-# Checks if bead counts fall below a specified threshold by antigen
-# Prints list of samples per antigen
-
-bead.check <- function(data,min=50,ag_list) {
+### ### ### ### ### ### ### ### ### ###
+##### "read.batch.std_v2" function #####
+### ### ### ### ### ### ### ### ### ###
+read.batch.std_v2 <- function (path, inc_date=F,inc_plate=F) {
   
-  for (i in ag_list) {
-      
-    bead_low <- which(data[,i]<min)
-      
-    if (length(bead_low)>0) {
-      
-      bead_low_table <- as.data.frame(cbind(as.character(data[bead_low,"Location"]),as.character(data[bead_low,"Sample"]),data[bead_low,i]))
-      names(bead_low_table) <- c("well","sample_id","beads")
-        
-      print(i)
-      print(bead_low_table)
-      
-    } else {
-      print(i)
-      print("All wells are above the minimum bead count for this antigen")
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+    section1 <- grep("Median",plate[[i]]$Sample)[1]
+    section2 <- grep("Count",plate[[i]]$Sample)[1]
+    
+    plate[[i]] <- plate[[i]][(section1+2):(section2-2),-ncol(plate[[i]])]
+    
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.character)
+    plate[[i]][,3:ncol(plate[[i]])] <- sapply(plate[[i]][,3:ncol(plate[[i]])],as.numeric)
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
     }
     
+    if (inc_plate==T) {
+      plate[[i]]$plate <- i
+      
+    }
   }
+  
+  names(plate) <- plate_lab
+  
+  return(plate)
   
 }
 
-################################
-#### "join.plates" function ####
-################################
-## Binds all plates into a single object
+### ### ### ### ### ### ### ### ### #
+##### "read.batch.std" function #####
+### ### ### ### ### ### ### ### ### #
+
+read.batch.std <- function(path, std_labels, inc_date = FALSE, inc_plate = FALSE) {
+  
+  setwd(path)
+  temp <- list.files(pattern = "*.csv")
+  plate_lab <- substr(temp, 1, nchar(temp) - 4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1) # original code
+    #plate[[i]] <- read.csv(temp[i], skip=startrow)
+    
+    # Normalize column names
+    names(plate[[i]]) <- trimws(names(plate[[i]]))
+    
+    sample_col <- grep("Sample", names(plate[[i]]), ignore.case = TRUE, value = TRUE)
+    
+    if (length(sample_col) == 0) {
+      stop(paste("Plate", i, ": no Sample column found"))
+    }
+    
+    sample_col <- sample_col[1]
+    plate[[i]]$Sample <- trimws(as.character(plate[[i]][[sample_col]]))
+    
+    section1 <- grep("^\\s*Median\\b", trimws(plate[[i]]$Sample), ignore.case = TRUE)
+    section1_end <- grep("Net MFI", plate[[i]]$Sample, ignore.case = TRUE)
+    
+    section2 <- grep("Dilution Factor", plate[[i]]$Sample, ignore.case = TRUE)
+    section2_end <- grep("Analysis Types", plate[[i]]$Sample, ignore.case = TRUE)
+    
+    if (length(section1) == 0 || length(section1_end) == 0 ||
+        length(section2) == 0 || length(section2_end) == 0) {
+      stop(paste("Plate", i, ": standard curve sections not found"))
+    }
+    
+    # ONLY NOW take the first index
+    section1 <- section1[1]
+    section1_end <- section1_end[1]
+    section2 <- section2[1]
+    section2_end <- section2_end[1]
+    
+    # Create Median and Dilution data blocks
+    plate_i_Median <- plate[[i]][(section1 + 2):(section1_end - 2), -ncol(plate[[i]])]
+    plate_i_dilution <- plate[[i]][(section2 + 2):(section2_end - 2), -ncol(plate[[i]])]
+    
+    # Create regex pattern from user input
+    pattern <- paste(std_labels, collapse = "|")
+
+    # Filter rows in both datasets to only contain manual std values
+    plate_i_Median  <- plate_i_Median[grepl(pattern, plate_i_Median$Sample, ignore.case = TRUE), ]
+    plate_i_dilution <- plate_i_dilution[grepl(pattern, plate_i_dilution$Sample, ignore.case = TRUE), ]
+
+
+    # Make first 2 columns character and the rest numeric for both datasets
+    plate_i_Median[, 1:2] <- lapply(plate_i_Median[, 1:2],as.character)
+    plate_i_Median[,3:ncol(plate_i_Median)] <- lapply(plate_i_Median[,3:ncol(plate_i_Median)],as.numeric)
+
+    plate_i_dilution[, 1:2] <- lapply(plate_i_dilution[, 1:2],as.character)
+    plate_i_dilution[,3:ncol(plate_i_dilution)] <- lapply(plate_i_dilution[,3:ncol(plate_i_dilution)],as.numeric)
+    
+    # Combine datasets into main dataset
+    plate_i_combined <- merge(
+      plate_i_Median, 
+      plate_i_dilution, 
+      by = c("Sample"), 
+      all.x = TRUE
+    )
+    
+    # Save as plate[[i]]
+    plate[[i]] <- plate_i_combined
+    
+    if (inc_date==T) {
+      plate[[i]]$date <- plate_raw[grep("Date",plate_raw[,1]),2]
+      plate[[i]]$date <- as.Date(plate[[i]]$date,"%m/%d/%Y")
+    }
+    
+    if (inc_plate==T) {
+      plate[[i]]$plate <- i
+      
+    }
+  }
+    
+  names(plate) <- plate_lab
+  
+  return(plate)
+  
+}
+    
+
+### ### ### ### ### ### ### ### ##
+##### "join.plates" function #####
+### ### ### ### ### ### ### ### ##
+
+# Binds all plates into a single object
 
 join.plates <- function(plates,exc_blank=F) {
   
@@ -194,7 +263,7 @@ join.plates <- function(plates,exc_blank=F) {
   col_order <- colnames(plates[[1]])
   
   for (i in 1:length(plates)) {
-
+    
     plates[[i]] <- as.data.frame(plates[[i]])
     plates[[i]] <- plates[[i]][col_order]
     output <- rbind(output,plates[[i]])
@@ -205,43 +274,312 @@ join.plates <- function(plates,exc_blank=F) {
   
 }
 
-#################################
-#### "blank.adjust" function ####
-#################################
+### ### ### ### ### ### ### ### ### ### #
+##### "plot_beads_by_well" function #####
+### ### ### ### ### ### ### ### ### ### #
+plot_beads_by_well <- function(plate_data, plate_name = NULL, threshold = input$bead_threshold) {
+  # Standardize column name
+  if (!"Well" %in% names(plate_data)) {
+    if ("Location" %in% names(plate_data)) {
+      plate_data <- plate_data %>% dplyr::rename(Well = Location)
+    } else {
+      stop("No 'Well' or 'Location' column found in plate_data")
+    }
+  }
+  
+  # Clean Location from 1(1,A1) -> 1
+  plate_data$Well <- sub(".*,(.*)\\).*", "\\1", plate_data$Well)
+  
+  # Create vector of breaks (first well of each row)
+  x_breaks <- unique(sub("(.)\\d+", "\\11", plate_data$Well))
+  
+  # Remove Total Events (if it is in the dataset)
+  if("Total.Events" %in% names(plate_data)) {
+    plate_data <- plate_data %>%
+      select(-c(Total.Events))
+  }
+  
+  ## Convert to long format to plot
+  bead_data <- plate_data %>%
+    pivot_longer(cols = -c(Sample, Well), names_to = "Antigen", values_to = "BeadCount")
+  
+  bead_data$below_threshold <- bead_data$BeadCount < threshold
+  
+  ## Plot
+  p <- ggplot(bead_data, aes(x = Well, y = BeadCount, group = Antigen)) +
+    geom_line() +
+    geom_point(aes(color = below_threshold), size = 1) +
+    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"), guide = "none") +
+    geom_hline(yintercept = threshold, linetype = "dashed") +
+    scale_x_discrete(breaks = x_breaks) +
+    labs(title = ifelse(is.null(plate_name), "Bead counts by well", paste("Bead counts:", plate_name))) +
+    theme_minimal() +
+    theme(strip.text = element_text(size=20),
+          axis.text.y = element_text(size=15),
+          axis.text.x = element_text(hjust = 1, size=15), # angle = 45 (makes the label tilted if needing to fit for size)
+          axis.title = element_text(size = 18),
+          plot.title  = element_text(size = 20, face = "bold"),
+          legend.position="none") + # Remove legend
+    facet_wrap(~Antigen, scales = "free_y", ncol = 2)
+  
+  return(p)
+  
+}
+
+### ### ### ### ### ### ### ##
+##### "convert_dilution" #####
+### ### ### ### ### ### ### ##
+# Helper function for the function plot.std.curve3_interactive 
+# Converts dilutions from fraction format to log numeric
+
+convert_dilution <- function(dilution_str) {
+  if (grepl("/", dilution_str)) {
+    parts <- strsplit(dilution_str, "/")[[1]]
+    return(as.numeric(parts[1]) / as.numeric(parts[2]))
+  } else {
+    return(as.numeric(dilution_str))
+  }
+}
+
+
+### ### ### ### ### ### ### ### ### ### ### ### ##
+##### "plot.std.curve3_interactive" function #####
+### ### ### ### ### ### ### ### ### ### ### ### ##
+plot.std.curve3_interactive <- function(data_list, antigen, plate_selected, dilutions) {
+  
+  # Convert dilution strings → numeric dilution factors
+  dilution_numeric <- sapply(dilutions, convert_dilution)
+  
+  curves <- list()
+  n_dil <- length(dilutions)
+  
+  # Extract standard curves for each plate
+  for (i in seq_along(data_list)) {
+    plate_data <- data_list[[i]]
+    if (!(antigen %in% colnames(plate_data))) next
+    std_curve <- get.standard(plate_data, dilutions)
+    curves[[ names(data_list)[i]]] <- std_curve[[antigen]]
+  }
+  
+  # Convert list → tidy dataframe
+  df <- do.call(rbind, lapply(names(curves), function(plate) {
+    data.frame(
+      Plate = plate,
+      Dilution = factor(dilutions, levels = dilutions),
+      MFI = curves[[plate]]
+    )
+  }))
+  
+  # Build ggplot
+  p <- ggplot(df, aes(x = Dilution, y = log(MFI), color = Plate, group = Plate)) +
+    geom_line(size = 1) +
+    geom_point(size = 2) +
+    labs(
+      title = paste("Standard Curve for", antigen),
+      x = "Dilution",
+      y = "Log MFI"
+    ) +
+    theme_minimal(base_size = 14)
+  
+  # Convert ggplot → plotly
+  return(p)
+}
+
+# OTHER OLD CODE
+# plot.std.curve3_interactive <- function(data, antigen, dilutions, std_label, negs=NULL, blanks=NULL, plate_labels=NULL) {
+#   
+#   curves <- list()
+#   max.set <- c()
+#   plate_labels_def <- c()
+#   
+#   # Split the user-defined standard labels
+#   std_labels <- unlist(strsplit(std_label, ","))   # e.g., "P1|P2|P3|P4|P5|P6|P7|P8"
+#   
+#   for (j in 1:length(data)){
+#     
+#     if (!(antigen %in% colnames(data[[j]]))) {
+#       print(paste0(" '", antigen, "' does not exist in dataset ", j, " - check spelling "))
+#       next
+#     }
+#     
+#     # Filter standard rows
+#     std_rows <- data[[j]]$Sample %in% std_labels       # Subset only standard rows
+#     standard_data <- data[[j]][std_rows, ]
+#     
+#     # Call function get.standard on subset
+#     std_curve <- get.standard(standard_data, std_label = std_label, dilutions = dilutions, n_points = length(dilutions))
+#     
+#     if (!is.null(std_curve)) {
+#       curves[[j]] <- std_curve[[antigen]]            # extract only antigen column
+#       max.set <- c(max.set, curves[[j]])
+#       plate_labels_def <- c(plate_labels_def, paste0("plate", j))
+#     } else {
+#       curves[[j]] <- NA
+#     }
+#     
+#   }
+#   
+#   pnames <- names(data)
+#   max.set <- max.set[is.finite(max.set)]
+#   max <- max(max.set)
+#   
+#   n_dil <- length(dilutions)
+#   
+#   # Plot with plotly
+#   fig <- plot_ly(x = 1:n_dil, y = curves[[1]], mode="lines", type="scatter", name=pnames[1], showlegend=F)
+#   for (i in 2:length(data)){
+#     fig <- fig %>% add_trace(x = 1:n_dil, y = curves[[i]], mode="lines", type="scatter", name=pnames[i], showlegend=F)
+#   }
+#   
+#   fig <- fig %>% layout(
+#     xaxis = list(
+#       tickmode = "array",
+#       ticktext = as.list(dilutions),
+#       tickvals = as.list(1:n_dil)
+#     ),
+#     title = antigen
+#   )
+#   
+#   return(fig)
+# }
+
+# ORIGINAL CODE
+# plot.std.curve3_interactive <- function(data, antigen, dilutions, negs=NULL, blanks=NULL, plate_labels=NULL) {
+#   curves <- list()
+#   max.set <- c()
+#   plate_labels_def <- c()
+#   
+#   for (j in 1:length(data)){
+#     
+#     if ((antigen %in% colnames(data[[j]]))==F) {
+#       print(paste0(" '",antigen,"'"," does not exist in dataset ",j," - check spelling "))
+#       next
+#     } else {
+#       curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen)]
+#       max.set <- c(max.set,curves[[j]])
+#       plate_labels_def <- c(plate_labels_def,paste0("plate",j))
+#     }
+#     
+#   }
+#   pnames<-names(data)
+#   max.set <- max.set[is.finite(max.set)]
+#   max <- max(max.set)
+#   
+#   conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
+#   
+#   n_dil <- length(dilutions)
+#   fig <- plot_ly(x = 1:n_dil, y = curves[[1]], mode="lines", type="scatter", name=pnames[1], showlegend=F)
+#   for (i in 2:length(data)){
+#     fig <- fig %>% add_trace(x = 1:n_dil, y = curves[[i]], mode="lines", type="scatter", name=pnames[i], showlegend=F)
+#   }
+#   fig <- fig %>% layout(
+#     xaxis = list(
+#       tickmode = "array",
+#       ticktext = as.list(dilutions),
+#       tickvals = as.list(1:n_dil)
+#     ),
+#     title = antigen
+#   )
+#   
+#   # fig<- plot_ly(x = 1:6, y= curves[[1]],mode="lines",type="scatter",name=pnames[1],showlegend = F)
+#   # 
+#   # for (i in 2:length(data)){
+#   #   fig <- fig %>% add_trace(x = 1:6, y= curves[[i]],mode="lines",type="scatter",name=pnames[i],showlegend = F)
+#   # }
+#   # fig <- fig %>% layout( 
+#   #   xaxis = list(
+#   #     tickmode="array",
+#   #     ticktext=as.list(dilutions[1:6]), 
+#   #     tickvals=as.list(1:5)
+#   #     ),
+#   #     title = antigen
+#   #   )
+#   fig
+#   
+# }
+
+
+### ### ### ### ### ### ### ### ###
+##### "blank.adjust" function #####
+### ### ### ### ### ### ### ### ###
 
 # Calculates mean MFI values for "blank" samples for each antigen
 # Subtracts mean blank value from samples MFI values
 # Sets any negative MFI values after subtraction to 0
 
-blank.adjust <- function (data, blank_label) {
+blank.adjust <- function (data, blank_label, bkg_select) {
 
   blank_mean <- list()
   blank <- data[grep(blank_label,data$Sample),]
-  
+
   if (nrow(blank)==0) {
-    
+
     print(paste0("Error: No samples with label"," '",blank_label,"' ","included in this dataset"))
-    
+
   } else {
-  
+
     blank_mean <- apply(blank[,3:ncol(data)], 2, mean)
 
-    for (i in 3:ncol(data)) {  
-    
+    for (i in 3:ncol(data)) {
+
+    # Subtract
+      if(bkg_select() == "Subtract"){
       data[-grep(blank_label,data$Sample),i] <- data[-grep(blank_label,data$Sample),i] - blank_mean[i-2]
-    
-      for (j in 1:nrow(data)){
+
+        for (j in 1:nrow(data)){
+  
+          if (is.na(data[j,i])==T) data[j,i] <- data[j,i]
+          else if (data[j,i] < 0) data[j,i] <- 0
+        }
+      }
       
-        if (is.na(data[j,i])==T) data[j,i] <- data[j,i]
-        else if (data[j,i] < 0) data[j,i] <- 0
+    # Divide
+      if(bkg_select() == "Divide"){
+        data[-grep(blank_label,data$Sample),i] <- data[-grep(blank_label,data$Sample),i] / blank_mean[i-2]
         
+        for (j in 1:nrow(data)){
+          
+          if (is.na(data[j,i])==T) data[j,i] <- data[j,i]
+          else if (data[j,i] < 0) data[j,i] <- 0
+        }
       }
     }
   }
-  
+
   return(data)
-  
+
 }
+
+    # ORIGINAL FUNCTION
+          # blank.adjust <- function (data, blank_label) {
+          # 
+          #   blank_mean <- list()
+          #   blank <- data[grep(blank_label,data$Sample),]
+          #   
+          #   if (nrow(blank)==0) {
+          #     
+          #     print(paste0("Error: No samples with label"," '",blank_label,"' ","included in this dataset"))
+          #     
+          #   } else {
+          #   
+          #     blank_mean <- apply(blank[,3:ncol(data)], 2, mean)
+          # 
+          #     for (i in 3:ncol(data)) {  
+          #     
+          #       data[-grep(blank_label,data$Sample),i] <- data[-grep(blank_label,data$Sample),i] - blank_mean[i-2]
+          #     
+          #       for (j in 1:nrow(data)){
+          #       
+          #         if (is.na(data[j,i])==T) data[j,i] <- data[j,i]
+          #         else if (data[j,i] < 0) data[j,i] <- 0
+          #         
+          #       }
+          #     }
+          #   }
+          #   
+          #   return(data)
+          #   
+          # }
 
 blank.adjust.batch <- function(plates,blank_label) {
 
@@ -290,9 +628,10 @@ blank.adjust.batch <- function(plates,blank_label) {
   
 }
 
-################################
-#### "exclude" function ####
-################################
+### ### ### ### ### ### ### ##
+##### "exclude" function #####
+### ### ### ### ### ### ### ##
+
 ## removes blank, neg or pos control entries from dataset
 
 exclude <- function(data,blank_label=NULL,neg_label=NULL,std_label=NULL) {
@@ -305,406 +644,135 @@ exclude <- function(data,blank_label=NULL,neg_label=NULL,std_label=NULL) {
 
 }
 
-#################################
-#### "get.standard" function ####
-#################################
+### ### ### ### ### ### ### ### ###
+##### "get.standard" function #####
+### ### ### ### ### ### ### ### ###
 
 # Saves only the data for the standard curve samples to a data object - used for other functions
-
-get.standard <- function(data,std_label,dilutions,n_points){
+get.standard <- function(data, dilutions) {
+  data$Sample <- as.character(data$Sample)
+  dilutions <- trimws(as.character(dilutions))
   
-  std <- data[grep(std_label, data$Sample)[n_points:1],]
-  
-  for (i in 1:length(dilutions)) {
-    std$dil_no[grep(dilutions[i], std$Sample)] <- i
+  # Add a dilution number column
+  data$dil_no <- NA
+  for (i in seq_along(dilutions)) {
+    hits <- grep(dilutions[i], data$Sample)
+    if (length(hits) > 0) data$dil_no[hits] <- i
   }
   
-  std <- std[order(std$dil_no),]
+  # Order by dilution
+  data <- data[order(data$dil_no, na.last = NA), ]
   
-  std[,3:ncol(data)] <- sapply(std[,3:ncol(data)],as.character)
-  
-  if ("date" %in% colnames(std)) {
-  
-    std[,3:which(colnames(std)=="date")-1] <- sapply(std[,3:which(colnames(std)=="date")-1],as.numeric)
-  
-  } else std[,3:ncol(data)] <- sapply(std[,3:ncol(data)],as.numeric)
-  
-  return(std)
-  
-}  
-
-###################################
-#### "plot.std.curve" function ####
-###################################
-
-# Plots standard curve for 1 antigen
-
-plot.std.curve1 <- function(data,plotfile="plot1.pdf",antigen,dilutions,ref_curve,save_file=F,path=getwd()) {
-
-  ref_curve <- ref_curve[,which(colnames(ref_curve)==antigen)]
-  
-  if ((antigen %in% colnames(data))==F) {
-    
-    print("Antigen name entered does not exist in dataset - check spelling")
-
-  } else {
-  
-    max.set <- data[,which(colnames(data)==antigen)]
-    max.set <- cbind(max.set[is.finite(max.set)],ref_curve)
-    max.set <- max.set[!is.na(max.set)]
-  
-    max <- max(max.set)
-  
-    conc <- sapply(strsplit(dilutions, split = "/"),
-         function(x) as.numeric(x[1]) / as.numeric(x[2]))
-  
-  # saves file #
-  
-    if (save_file==T) {
-    
-      pdf(paste0(path,plotfile))
-    
-      par(mfrow=c(1,1))
-    
-      plot(log(conc),data[,which(colnames(data)==antigen)],
-         type="o",pch=19,col="red",axes=F,bty='L',
-         ylab="MFI",xlab="Dilution factor",
-         ylim=c(0,max*1.2),xlim=c(min(log(conc)),max(log(conc))+1),
-         main=paste(colnames(data[which(colnames(data)==antigen)]),"Standard curve",sep='\n'))
-      axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.9)
-      axis(2,cex.axis=0.9)
-      lines(log(conc),ref_curve,type="o",col="black",pch=19)
-      lines(log(conc),data[,which(colnames(data)==antigen)],type="o",col="red",pch=19)
-    
-      legend("topleft",cex=0.9,pch=19,bty="n",
-           c("Reference curve","Plate curve"),col=c("black","red"))
-    
-      dev.off()
-    }
-  
-  # plots for viewing in R #
-  
-    par(mfrow=c(1,1))
-  
-    plot(log(conc),data[,which(colnames(data)==antigen)],
-       type="o",pch=19, col="red",axes=F,bty='L',
-       ylim=c(0,max*1.2),xlim=c(min(log(conc)),max(log(conc))+1),
-       ylab="MFI",xlab="Dilution factor",
-       main=paste(colnames(data[which(colnames(data)==antigen)]),"Standard curve",sep='\n'))
-    axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.8)
-    axis(2,cex.axis=0.8)
-    lines(log(conc),ref_curve,type="o",col="black",pch=19)
-    lines(log(conc),data[,which(colnames(data)==antigen)],type="o",col="red",pch=19)
-  
-    legend("topleft",cex=0.9,pch=19,bty="n",
-         c("Reference curve","Plate curve"),col=c("black","red"))
-    
-    }
-
+  # Numeric columns
+  data[, 3:ncol(data)] <- sapply(data[, 3:ncol(data)], as.numeric)
+  return(data)
 }
 
-# Plots standard curve for multiple antigens in 3x3 matrix
+    # OTHER OLD CODE
+      # get.standard <- function(data, std_label, dilutions, n_points) {
+      #   
+      #   # Make sure character vectors
+      #   data$Sample <- as.character(data$Sample)
+      #   std_label <- as.character(std_label)
+      #   dilutions <- as.character(dilutions)
+      #   
+      #   # Instead of regex, match exact Sample names
+      #   matches <- which(data$Sample %in% std_label)
+      #   
+      #   if(length(matches) == 0) {
+      #     warning("No standard curve samples found for std_label: ", std_label)
+      #     return(NULL)
+      #   }
+      #   
+      #   if(length(matches) < n_points) {
+      #     warning("Fewer standard samples than n_points. Using all available.")
+      #     std <- data[matches, ]
+      #   } else {
+      #     std <- data[matches[n_points:1], ]
+      #   }
+      #   
+      #   # Safely convert numeric columns
+      #   num_cols <- sapply(std, is.numeric)
+      #   std[,num_cols] <- lapply(std[,num_cols], as.numeric)
+      #   
+      #   # Assign dilution numbers
+      #   std$dil_no <- NA
+      #   for (i in seq_along(dilutions)) {
+      #     hits <- grep(dilutions[i], std$Sample)
+      #     if(length(hits) > 0){
+      #       std$dil_no[hits] <- i
+      #     }
+      #   }
+      #   
+      #   # Order by dilution number
+      #   std <- std[order(std$dil_no, na.last = NA), ]
+      #   
+      #   # Convert columns to numeric
+      #   std[,3:ncol(data)] <- sapply(std[,3:ncol(data)], as.character)
+      #   
+      #   if ("date" %in% colnames(std)) {
+      #     std[,3:(which(colnames(std)=="date")-1)] <- sapply(std[,3:(which(colnames(std)=="date")-1)], as.numeric)
+      #   } else {
+      #     std[,3:ncol(data)] <- sapply(std[,3:ncol(data)], as.numeric)
+      #   }
+      #   
+      #   return(std)
+      # }
 
-plot.std.curve2 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,ref_curve,path=getwd(),ref_label="Reference",plate_label="Plate") {
-  
-  if (save_file==T) {
-    
-    pdf(paste0(path,plotfile))
-    
-    # par(mfrow=c(3,3))
-    
-    for (j in 1:length(antigen.list)){
-      
-      if ((antigen.list[j] %in% colnames(data))==F) {
-        next
-      } else {
-        
-        ref_curve1 <- ref_curve[,which(names(ref_curve)==antigen.list[j])]
-        
-        max.set <- data[,which(colnames(data)==antigen.list[j])]
-        max.set <- cbind(max.set[is.finite(max.set)],ref_curve1)
-        max.set <- max.set[!is.na(max.set)]
-        
-        max <- max(max.set)
-        
-        conc <- sapply(strsplit(dilutions, split = "/"),
-                       function(x) as.numeric(x[1]) / as.numeric(x[2]))
-        
-        plot(log(conc),data[,which(colnames(data)==antigen.list[j])], type="o", pch=19, col="red",
-             ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
-             ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
-             main=paste(colnames(data[which(colnames(data)==antigen.list[j])]),"Standard curve", sep='\n'),cex.main=0.9 )
-        axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
-        axis(2, cex.axis=0.8)
-        lines(log(conc),ref_curve1,type="o",col="black",pch=19)
-        lines(log(conc),data[,which(colnames(data)==antigen.list[j])],type="o",col="red",pch=19)
-        
-        legend("topleft", cex=0.8, pch=19,bty="n",y.intersp=0.8,
-               c(ref_label,plate_label),col=c("black","red"))
-      }
-      
-    }
-    
-    dev.off()
-    
-  }
-  
-  # par(mfrow=c(3,3))
-    
-  for (i in 1:length(antigen.list)){
-    
-    if ((antigen.list[i] %in% colnames(data))==F) {
-      print(paste0(" '",antigen.list[i],"'"," does not exist in dataset - check spelling "))
-      next
-    } else {
-    
-      ref_curve1 <- ref_curve[,which(colnames(ref_curve)==antigen.list[i])]
-
-      max.set <- data[,which(colnames(data)==antigen.list[i])]
-      max.set <- cbind(max.set[is.finite(max.set)],ref_curve1)
-      max.set <- max.set[!is.na(max.set)]
-    
-      max <- max(max.set)
-    
-      conc <- sapply(strsplit(dilutions, split = "/"),
-                   function(x) as.numeric(x[1]) / as.numeric(x[2]))
-    
-     # plots for viewing in R #
-    
-      plot(log(conc),data[,which(colnames(data)==antigen.list[i])],
-         type="o",pch=19,col="red",axes=F,bty='L',cex.main=0.9,
-         ylab="MFI", xlab="Dilution factor", 
-         ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
-         main=paste(colnames(data[which(colnames(data)==antigen.list[i])]),"Standard curve",sep='\n'))
-      axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.8)
-      axis(2,cex.axis=0.8)
-      lines(log(conc),ref_curve1,type="o",col="black",pch=19)
-      lines(log(conc),data[,which(colnames(data)==antigen.list[i])],type="o",col="red",pch=19)
-    
-      legend("topleft", cex=0.9, pch=19,bty="n",
-           c(ref_label,plate_label),col=c("black","red"))
-    }
-  }
-}
-
-# Plots standard curve for multiple plates (up to 5) and multiple antigens in 3x3 matrix
-
-# data list of standards from multiple plates (maximum is 5 at a time)
-
-plot.std.curve3 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,path=getwd(),negs=NULL,blanks=NULL,plate_labels=NULL) {
-  
-  if (save_file==T) {
-    
-    pdf(paste0(path,plotfile))
-    
-    # par(mfrow=c(3,2))
-    
-    for (i in 1:length(antigen.list)){
-      
-        curves <- list()
-        max.set <- c()
-        plate_labels_def <- c()
-        
-        for (j in 1:length(data)){
-          
-          if ((antigen.list[i] %in% colnames(data[[j]]))==F) {
-            print(paste0(" '",antigen.list[i],"'"," does not exist in dataset ",j," - check spelling "))
-            next
-          } else {      
-            curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen.list[i])]
-            max.set <- c(max.set,curves[[j]])
-            plate_labels_def <- c(plate_labels_def,paste0("plate",j))
-          }
-        }
-        
-        max.set <- max.set[is.finite(max.set)]
-        max <- max(max.set)
-        
-        conc <- sapply(strsplit(dilutions, split = "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
-        cols1 <- c("blue2","red3","green4","purple3","goldenrod2")
-        
-        plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
-             ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
-             main=paste(antigen.list[i],"Standard curve", sep='\n'),cex.main=0.9 )
-        axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
-        axis(2, cex.axis=0.8)
-        
-        for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
-
-        if (length(plate_labels)==0) { 
-          legend("topleft",cex=0.6,pch=19,bty="n",y.intersp=0.8,plate_labels_def,col=cols1[1:length(data)]) 
-        } else { legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.6,plate_labels,col=cols1[1:length(data)]) }
-    }
-    
-    dev.off()
-    
-  }
-  
-  # par(mfrow=c(3,3))
-  
-  for (i in 1:length(antigen.list)){
-    
-      curves <- list()
-      max.set <- c()
-      plate_labels_def <- c()
-      
-      for (j in 1:length(data)){
-        
-        if ((antigen.list[i] %in% colnames(data[[j]]))==F) {
-          print(paste0(" '",antigen.list[i],"'"," does not exist in dataset ",j," - check spelling "))
-          next
-        } else {
-          curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen.list[i])]
-          max.set <- c(max.set,curves[[j]])
-          plate_labels_def <- c(plate_labels_def,paste0("plate",j))
-        }
-        
-      }
-      
-      max.set <- max.set[is.finite(max.set)]
-      max <- max(max.set)
-      
-      conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
-      cols1 <- c("green4","blue2","red3","purple3","goldenrod2")
-      
-      # plots for viewing in R #
-      
-      plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],
-           ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
-           ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
-           main=paste(antigen.list[i],"Standard curve", sep='\n'),cex.main=0.9 )
-      axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
-      axis(2, cex.axis=0.8)
-      if (is.null(blanks)==F) abline(h=mean(blanks[,antigen.list[i]]),lty=3,lwd=1.5)
-      if (is.null(negs)==F) abline(h=mean(negs[,antigen.list[i]]),col="red",lty=3,lwd=1.5)
-      
-      for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
-      
-      if (length(plate_labels)==0) { 
-        legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.4,plate_labels_def,col=cols1[1:length(data)]) 
-      } else if(is.null(negs)==F&is.null(blanks)==F) {
-          legend("topleft",cex=0.8,pch=c(19,19,NA,NA),lty=c(NA,NA,3,3),bty="n",y.intersp=0.4,
-          c(plate_labels,"Neg","Blank"),col=c(cols1[1:length(data)],"red","black"),seg.len=1)
-        } else {
-            legend("topleft",cex=0.5,pch=19,bty="n",y.intersp=0.4,
-            c(plate_labels),col=c(cols1[1:length(data)]),seg.len=1)   
-        }
-  }
-}
-
-plot.std.curve3_single_ag <- function(data,antigen,dilutions,negs=NULL,blanks=NULL,plate_labels=NULL) {
-  curves <- list()
-  max.set <- c()
-  plate_labels_def <- c()
-  
-  for (j in 1:length(data)){
-    
-    if ((antigen %in% colnames(data[[j]]))==F) {
-      print(paste0(" '",antigen,"'"," does not exist in dataset ",j," - check spelling "))
-      next
-    } else {
-      curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen)]
-      max.set <- c(max.set,curves[[j]])
-      plate_labels_def <- c(plate_labels_def,paste0("plate",j))
-    }
-    
-  }
-  
-  max.set <- max.set[is.finite(max.set)]
-  max <- max(max.set)
-  
-  conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
-  cols1 <- c("green4","blue2","red3","purple3","goldenrod2")
-  # cols1 <- brewer.pal(length(data),"Paired")
-
-  # plots for viewing in R #
-  
-  plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],
-        ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
-        ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
-        main=paste(antigen,"Standard curve", sep='\n'),cex.main=0.9 )
-  axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
-  axis(2, cex.axis=0.8)
-  if (is.null(blanks)==F) abline(h=mean(blanks[,antigen]),lty=3,lwd=1.5)
-  if (is.null(negs)==F) abline(h=mean(negs[,antigen]),col="red",lty=3,lwd=1.5)
-  
-  for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
-  
-  if (length(plate_labels)==0) { 
-    legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.4,plate_labels_def,col=cols1[1:length(data)]) 
-  } else if(is.null(negs)==F&is.null(blanks)==F) {
-      legend("topleft",cex=0.8,pch=c(19,19,NA,NA),lty=c(NA,NA,3,3),bty="n",y.intersp=0.4,
-      c(plate_labels,"Neg","Blank"),col=c(cols1[1:length(data)],"red","black"),seg.len=1)
-    } else {
-        legend("topleft",pch=19,bty="n",
-        c(plate_labels),col=c(cols1[1:length(data)]))   
-    }
-}
-
-################################################
-#### "plot.std.curve3_interactive" function ####
-################################################
+          # ORIGINAL CODE
+          # get.standard <- function(data,std_label = std_label, dilutions,n_points){
+          #   
+          #   # Convert std_label to regex that matches any substring
+          #   pattern <- paste0("(?i)", std_label)  # (?i) for case-insensitive
+          #   
+          #   std <- data[grep(std_label, data$Sample)[n_points:1],]
+          #   
+          #   # for (i in 1:length(dilutions)) {
+          #   #   std$dil_no[grep(dilutions[i], std$Sample)] <- i
+          #   # }
+          #   
+          #   for (i in seq_along(dilutions)) {
+          #     hits <- grep(dilutions[i], std$Sample)
+          #     if(length(hits) > 0){
+          #       std$dil_no[hits] <- i
+          #     }
+          #   }
+          #   
+          #   std <- std[order(std$dil_no),]
+          #   
+          #   std[,3:ncol(data)] <- sapply(std[,3:ncol(data)],as.character)
+          #   
+          #   if ("date" %in% colnames(std)) {
+          #   
+          #     std[,3:which(colnames(std)=="date")-1] <- sapply(std[,3:which(colnames(std)=="date")-1],as.numeric)
+          #   
+          #   } else std[,3:ncol(data)] <- sapply(std[,3:ncol(data)],as.numeric)
+          #   
+          #   return(std)
+          #   
+          # }  
 
 
-plot.std.curve3_interactive <- function(data,antigen,dilutions,negs=NULL,blanks=NULL,plate_labels=NULL) {
-  curves <- list()
-  max.set <- c()
-  plate_labels_def <- c()
-  
-  for (j in 1:length(data)){
-    
-    if ((antigen %in% colnames(data[[j]]))==F) {
-      print(paste0(" '",antigen,"'"," does not exist in dataset ",j," - check spelling "))
-      next
-    } else {
-      curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen)]
-      max.set <- c(max.set,curves[[j]])
-      plate_labels_def <- c(plate_labels_def,paste0("plate",j))
-    }
-    
-  }
-  pnames<-names(data)
-  max.set <- max.set[is.finite(max.set)]
-  max <- max(max.set)
-  
-  conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
-  
-  fig<- plot_ly(x = 1:6, y= curves[[1]],mode="lines",type="scatter",name=pnames[1],showlegend = F)
-  for (i in 2:length(data)){
-    fig <- fig %>% add_trace(x = 1:6, y= curves[[i]],mode="lines",type="scatter",name=pnames[i],showlegend = F)
-  }
-  fig <- fig %>% layout( 
-    xaxis = list(
-      tickmode="array",
-      ticktext=as.list(dilutions[1:6]), 
-      tickvals=as.list(1:5)
-      ),
-      title = antigen
-    )
-  fig
-  
-}
 
-################################
-####### "coefv" function #######
-################################
+### ### ### ### ### ### ### #
+##### "coefv" function #####
+### ### ### ### ### ### ### #
 
-coefv<-function(data,antigens,std_label,dilutions,target_dilution){
+coefv<-function(data, antigens, std_label = "(?i)CP3|Std Curve", dilutions, target_dilution){
   sapply(antigens,function(a){
     d<-sapply(names(data),function(p){
-      tmp<-get.standard(data[[p]],"CP3",dilutions = dilutions,n_points = 6) 
-      idx<-which(grepl("^CP3",tmp$Sample) & grepl(paste0(target_dilution,"$"),tmp$Sample))
-      tmp[idx,a]  
+      tmp<-get.standard(data[[p]],std_label = std_label,dilutions = dilutions,n_points = 6)
+      idx < -which(grepl(std_label, tmp$Sample) & grepl(paste0(target_dilution,"$"),tmp$Sample))
+      tmp[idx,a]
     })
     sd(d)/mean(d)
-    
   })
-  
 }
 
-################################
-####### "plot.coefv" function #######
-################################
+
+### ### ### ### ### ### ### ### #
+##### "plot.coefv" function #####
+### ### ### ### ### ### ### ### #
 
 plot.coefv<-function(data,antigens,std_label,dilutions,target_dilution){
   vals<-coefv(data,antigens,std_label,dilutions,target_dilution)
@@ -724,14 +792,12 @@ plot.coefv<-function(data,antigens,std_label,dilutions,target_dilution){
     )
   )
 
-  # axis(1,at=1:length(vals),labels=names(vals),cex.axis=0.8)
-  
 }
 
-  
-####################################
-#### "view.plate.data" function ####
-####################################
+
+### ### ### ### ### ### ### ### ### ##
+##### "view.plate.data" function #####
+### ### ### ### ### ### ### ### ### ##
 
 view.plate.data <- function(data,antigen) {
   
@@ -774,9 +840,9 @@ view.plate.data <- function(data,antigen) {
   
 }
 
-###################################
-#### "normalise.conc" function ####
-###################################
+### ### ### ### ### ### ### ### ### #
+##### "normalise.conc" function #####
+### ### ### ### ### ### ### ### ### #
 
 norm.conc <- function(data,dilutions,standards,ag_list,plot=F,path=getwd(),filename="data_conc.csv") {
 
@@ -888,9 +954,9 @@ norm.conc <- function(data,dilutions,standards,ag_list,plot=F,path=getwd(),filen
   
 }
 
-#########################################
-#### "normalise.conc.batch" function ####
-#########################################
+### ### ### ### ### ### ### ### ### ### ###
+##### "normalise.conc.batch" function #####
+### ### ### ### ### ### ### ### ### ### ###
 
 norm.conc.batch <- function(data_batch,standards_batch,ag_list,dilutions,plot=F,plate_label) {
   
@@ -914,9 +980,10 @@ norm.conc.batch <- function(data_batch,standards_batch,ag_list,dilutions,plot=F,
   
 }
 
-###############################
-#### "plot.plate" function ####
-###############################
+
+### ### ### ### ### ### ### ### #
+##### "plot.plate" function #####
+### ### ### ### ### ### ### ### #
 
 plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
   
@@ -934,11 +1001,11 @@ plot.plate <- function(data1,antigen,plotfile="plot1.pdf",plot=F,path=getwd()) {
 
 }
 
-###################################
-#### "levy.jennings" function ###
-###################################
+### ### ### ### ### ### ### ### ### #
+##### "levey.jennings" function #####
+### ### ### ### ### ### ### ### ### #
 
-levy.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
+levey.jennings <- function (data, std_label, blank_label, dil_high,dil_mid,dil_low,ag_list,by_var="date",subref=NULL,labels=F) {
 
   is.wholenumber <-
     function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) < tol
@@ -1246,10 +1313,11 @@ levy.jennings <- function (data,std_label,blank_label,dil_high,dil_mid,dil_low,a
     }
   }
 }
-  
-###################################
-#### "normalise.loess" function ###
-###################################
+
+
+### ### ### ### ### ### ### ### ### ##
+##### "normalise.loess" function #####
+### ### ### ### ### ### ### ### ### ##
 
 norm.loess <- function (data,dilutions,ag_list,ref_fit,plate_fit,plot_fit=F,lm=F,path=NULL,file_name=NULL,plate_label) {
 
@@ -1370,9 +1438,10 @@ norm.loess <- function (data,dilutions,ag_list,ref_fit,plate_fit,plot_fit=F,lm=F
 
 }
 
-###################################
-#### "normalise.frac" function ###
-###################################
+
+### ### ### ### ### ### ### ### ### #
+##### "normalise.frac" function #####
+### ### ### ### ### ### ### ### ### #
 
 norm.frac <- function (data,std_label,ag_list,path=NULL) {
  
@@ -1444,9 +1513,9 @@ norm.frac <- function (data,std_label,ag_list,path=NULL) {
   
 }
 
-##############################
-#### "plate2list" function ###
-##############################
+### ### ### ### ### ### ### ### #
+##### "plate2list" function #####
+### ### ### ### ### ### ### ### #
 
 # converting plate plans to importable sample id lists and vice versa
 # appends sample IDs by column in descending rows (i.e., A1-H1, A2-H2 etc)
@@ -1479,9 +1548,10 @@ plate2list <- function(data,no_plates,names=NULL,path){
   
 }
 
-###################################
-#### "ag column print" function ###
-###################################
+
+### ### ### ### ### ### ### ### ### ##
+##### "ag column print" function #####
+### ### ### ### ### ### ### ### ### ##
 
 ag.col.print <- function(data) {
   
@@ -1494,9 +1564,10 @@ ag.col.print <- function(data) {
   
 }
 
-######################################
-#### "ag column mismatch" function ###
-######################################
+
+### ### ### ### ### ### ### ### ### ### #
+##### "ag column mismatch" function #####
+### ### ### ### ### ### ### ### ### ### #
 
 ag.match.check <- function(data, plateprint=F) {
 
@@ -1546,9 +1617,11 @@ ag.match.check <- function(data, plateprint=F) {
 
 }
 
-######################################
-#### "ag column add" function ###
-######################################
+
+### ### ### ### ### ### ### ### ### 
+##### "ag column add" function #####
+### ### ### ### ### ### ### ### ### 
+
 # add missing columns to plate after ag.match.check function is run
 
 ag.column.add <- function(data,ag_mismatch) {
@@ -1568,10 +1641,412 @@ ag.column.add <- function(data,ag_mismatch) {
 }
 
 
-##########################
-#### "cutoff" function ###
-##########################
-# calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI
+
+### ### ### ### ### ### ### 
+##### Unused functions #####
+### ### ### ### ### ### ### 
+
+bead.check <- function(data, min=30, ag_list) {
+
+  # Checks if bead counts fall below a specified threshold by antigen
+  # Prints list of samples per antigen
+    
+  for (i in ag_list) {
+    
+    bead_low <- which(data[,i]<min)
+    
+    if (length(bead_low)>0) {
+      
+      bead_low_table <- as.data.frame(cbind(as.character(data[bead_low,"Location"]),as.character(data[bead_low,"Sample"]),data[bead_low,i]))
+      names(bead_low_table) <- c("well","sample_id","beads")
+      
+      print(i)
+      print(bead_low_table)
+      
+    } else {
+      print(i)
+      print("All wells are above the minimum bead count for this antigen")
+    }
+    
+  }
+  
+}
+
+
+read.batch.test <- function (path, inc_date=F, inc_plate=F, save_path=NULL) {
+  
+  setwd(path)
+  temp <- list.files(pattern="*.csv")
+  plate_lab <- substr(temp,1,nchar(temp)-4)
+  plate <- list()
+  
+  for(i in 1:length(temp)) { 
+    
+    plate_raw <- read.csv(temp[i])
+    startrow <- grep("DataType",plate_raw[,1])[1]
+    plate[[i]] <- read.csv(temp[i], skip=startrow+1)
+    
+  }
+}
+
+
+
+read.plate <- function (path,file_name,inc_date=F) {
+  
+  data_raw <-  read.csv(paste0(path,file_name))
+  startrow <- grep("DataType",data_raw[,1])[1]
+  data <- read.csv(paste0(path,file_name), skip=startrow+1)
+  
+  section <- grep("1,",data$Location, invert=T)[1]
+  
+  data <- data[1:(section-1),-ncol(data)]
+  
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
+  
+  if (inc_date==T) {
+    data$date <- data_raw[grep("Date",data_raw[,1]),2]
+    data$date <- as.Date(data$date,"%m/%d/%Y")
+  }
+  
+  return(data)
+  
+}
+
+read.plate.beads <- function (path,file_name,inc_date=F) {
+  
+  data_raw <-  read.csv(paste0(path,file_name))
+  startrow <- grep("DataType",data_raw[,1])[1]
+  data <- read.csv(paste0(path,file_name), skip=startrow+1)
+  
+  section1 <- grep("Count",data$Sample)[1]
+  section2 <- grep("Avg Net MFI",data$Sample)
+  
+  data <- data[(section1+2):(section2-2),-ncol(data)]
+  
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.character)
+  data[,3:ncol(data)] <- sapply(data[,3:ncol(data)],as.numeric)
+  
+  if (inc_date==T) {
+    data$date <- data_raw[grep("Date",data_raw[,1]),2]
+    data$date <- as.Date(data$date,"%m/%d/%Y")
+  }
+  
+  return(data)
+  
+}
+
+
+
+##### "plot.std.curve" function
+# Plots standard curve for 1 antigen
+plot.std.curve1 <- function(data, plotfile="plot1.pdf", antigen, dilutions, ref_curve, save_file=F, path=getwd()) {
+  
+  ref_curve <- ref_curve[,which(colnames(ref_curve)==antigen)]
+  
+  if ((antigen %in% colnames(data))==F) {
+    
+    print("Antigen name entered does not exist in dataset - check spelling")
+    
+  } else {
+    
+    max.set <- data[,which(colnames(data)==antigen)]
+    max.set <- cbind(max.set[is.finite(max.set)],ref_curve)
+    max.set <- max.set[!is.na(max.set)]
+    
+    max <- max(max.set)
+    
+    conc <- sapply(strsplit(dilutions, split = "/"),
+                   function(x) as.numeric(x[1]) / as.numeric(x[2]))
+    
+    # saves file #
+    
+    if (save_file==T) {
+      
+      pdf(paste0(path,plotfile))
+      
+      par(mfrow=c(1,1))
+      
+      plot(log(conc),data[,which(colnames(data)==antigen)],
+           type="o",pch=19,col="red",axes=F,bty='L',
+           ylab="MFI",xlab="Dilution factor",
+           ylim=c(0,max*1.2),xlim=c(min(log(conc)),max(log(conc))+1),
+           main=paste(colnames(data[which(colnames(data)==antigen)]),"Standard curve",sep='\n'))
+      axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.9)
+      axis(2,cex.axis=0.9)
+      lines(log(conc),ref_curve,type="o",col="black",pch=19)
+      lines(log(conc),data[,which(colnames(data)==antigen)],type="o",col="red",pch=19)
+      
+      legend("topleft",cex=0.9,pch=19,bty="n",
+             c("Reference curve","Plate curve"),col=c("black","red"))
+      
+      dev.off()
+    }
+    
+    # plots for viewing in R #
+    
+    par(mfrow=c(1,1))
+    
+    plot(log(conc),data[,which(colnames(data)==antigen)],
+         type="o",pch=19, col="red",axes=F,bty='L',
+         ylim=c(0,max*1.2),xlim=c(min(log(conc)),max(log(conc))+1),
+         ylab="MFI",xlab="Dilution factor",
+         main=paste(colnames(data[which(colnames(data)==antigen)]),"Standard curve",sep='\n'))
+    axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.8)
+    axis(2,cex.axis=0.8)
+    lines(log(conc),ref_curve,type="o",col="black",pch=19)
+    lines(log(conc),data[,which(colnames(data)==antigen)],type="o",col="red",pch=19)
+    
+    legend("topleft",cex=0.9,pch=19,bty="n",
+           c("Reference curve","Plate curve"),col=c("black","red"))
+    
+  }
+  
+}
+
+
+
+# Plots standard curve for multiple antigens in 3x3 matrix
+plot.std.curve2 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,ref_curve,path=getwd(),ref_label="Reference",plate_label="Plate") {
+  
+  if (save_file==T) {
+    
+    pdf(paste0(path,plotfile))
+    
+    # par(mfrow=c(3,3))
+    
+    for (j in 1:length(antigen.list)){
+      
+      if ((antigen.list[j] %in% colnames(data))==F) {
+        next
+      } else {
+        
+        ref_curve1 <- ref_curve[,which(names(ref_curve)==antigen.list[j])]
+        
+        max.set <- data[,which(colnames(data)==antigen.list[j])]
+        max.set <- cbind(max.set[is.finite(max.set)],ref_curve1)
+        max.set <- max.set[!is.na(max.set)]
+        
+        max <- max(max.set)
+        
+        conc <- sapply(strsplit(dilutions, split = "/"),
+                       function(x) as.numeric(x[1]) / as.numeric(x[2]))
+        
+        plot(log(conc),data[,which(colnames(data)==antigen.list[j])], type="o", pch=19, col="red",
+             ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
+             ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
+             main=paste(colnames(data[which(colnames(data)==antigen.list[j])]),"Standard curve", sep='\n'),cex.main=0.9 )
+        axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
+        axis(2, cex.axis=0.8)
+        lines(log(conc),ref_curve1,type="o",col="black",pch=19)
+        lines(log(conc),data[,which(colnames(data)==antigen.list[j])],type="o",col="red",pch=19)
+        
+        legend("topleft", cex=0.8, pch=19,bty="n",y.intersp=0.8,
+               c(ref_label,plate_label),col=c("black","red"))
+      }
+      
+    }
+    
+    dev.off()
+    
+  }
+  
+  # par(mfrow=c(3,3))
+  
+  for (i in 1:length(antigen.list)){
+    
+    if ((antigen.list[i] %in% colnames(data))==F) {
+      print(paste0(" '",antigen.list[i],"'"," does not exist in dataset - check spelling "))
+      next
+    } else {
+      
+      ref_curve1 <- ref_curve[,which(colnames(ref_curve)==antigen.list[i])]
+      
+      max.set <- data[,which(colnames(data)==antigen.list[i])]
+      max.set <- cbind(max.set[is.finite(max.set)],ref_curve1)
+      max.set <- max.set[!is.na(max.set)]
+      
+      max <- max(max.set)
+      
+      conc <- sapply(strsplit(dilutions, split = "/"),
+                     function(x) as.numeric(x[1]) / as.numeric(x[2]))
+      
+      # plots for viewing in R #
+      
+      plot(log(conc),data[,which(colnames(data)==antigen.list[i])],
+           type="o",pch=19,col="red",axes=F,bty='L',cex.main=0.9,
+           ylab="MFI", xlab="Dilution factor", 
+           ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
+           main=paste(colnames(data[which(colnames(data)==antigen.list[i])]),"Standard curve",sep='\n'))
+      axis(1,at=c(log(conc),max(log(conc))+1),labels=c(dilutions,""),cex.axis=0.8)
+      axis(2,cex.axis=0.8)
+      lines(log(conc),ref_curve1,type="o",col="black",pch=19)
+      lines(log(conc),data[,which(colnames(data)==antigen.list[i])],type="o",col="red",pch=19)
+      
+      legend("topleft", cex=0.9, pch=19,bty="n",
+             c(ref_label,plate_label),col=c("black","red"))
+    }
+  }
+}
+
+
+
+# Plots standard curve for multiple plates (up to 5) and multiple antigens in 3x3 matrix
+# data list of standards from multiple plates (maximum is 5 at a time)
+plot.std.curve3 <- function(data,plotfile="plot1.pdf",antigen.list,dilutions,save_file=F,path=getwd(),negs=NULL,blanks=NULL,plate_labels=NULL) {
+  
+  if (save_file==T) {
+    
+    pdf(paste0(path,plotfile))
+    
+    # par(mfrow=c(3,2))
+    
+    for (i in 1:length(antigen.list)){
+      
+      curves <- list()
+      max.set <- c()
+      plate_labels_def <- c()
+      
+      for (j in 1:length(data)){
+        
+        if ((antigen.list[i] %in% colnames(data[[j]]))==F) {
+          print(paste0(" '",antigen.list[i],"'"," does not exist in dataset ",j," - check spelling "))
+          next
+        } else {      
+          curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen.list[i])]
+          max.set <- c(max.set,curves[[j]])
+          plate_labels_def <- c(plate_labels_def,paste0("plate",j))
+        }
+      }
+      
+      max.set <- max.set[is.finite(max.set)]
+      max <- max(max.set)
+      
+      conc <- sapply(strsplit(dilutions, split = "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+      cols1 <- c("blue2","red3","green4","purple3","goldenrod2")
+      
+      plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
+           ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
+           main=paste(antigen.list[i],"Standard curve", sep='\n'),cex.main=0.9 )
+      axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
+      axis(2, cex.axis=0.8)
+      
+      for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
+      
+      if (length(plate_labels)==0) { 
+        legend("topleft",cex=0.6,pch=19,bty="n",y.intersp=0.8,plate_labels_def,col=cols1[1:length(data)]) 
+      } else { legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.6,plate_labels,col=cols1[1:length(data)]) }
+    }
+    
+    dev.off()
+    
+  }
+  
+  # par(mfrow=c(3,3))
+  
+  for (i in 1:length(antigen.list)){
+    
+    curves <- list()
+    max.set <- c()
+    plate_labels_def <- c()
+    
+    for (j in 1:length(data)){
+      
+      if ((antigen.list[i] %in% colnames(data[[j]]))==F) {
+        print(paste0(" '",antigen.list[i],"'"," does not exist in dataset ",j," - check spelling "))
+        next
+      } else {
+        curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen.list[i])]
+        max.set <- c(max.set,curves[[j]])
+        plate_labels_def <- c(plate_labels_def,paste0("plate",j))
+      }
+      
+    }
+    
+    max.set <- max.set[is.finite(max.set)]
+    max <- max(max.set)
+    
+    conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
+    cols1 <- c("green4","blue2","red3","purple3","goldenrod2")
+    
+    # plots for viewing in R #
+    
+    plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],
+         ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
+         ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
+         main=paste(antigen.list[i],"Standard curve", sep='\n'),cex.main=0.9 )
+    axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
+    axis(2, cex.axis=0.8)
+    if (is.null(blanks)==F) abline(h=mean(blanks[,antigen.list[i]]),lty=3,lwd=1.5)
+    if (is.null(negs)==F) abline(h=mean(negs[,antigen.list[i]]),col="red",lty=3,lwd=1.5)
+    
+    for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
+    
+    if (length(plate_labels)==0) { 
+      legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.4,plate_labels_def,col=cols1[1:length(data)]) 
+    } else if(is.null(negs)==F&is.null(blanks)==F) {
+      legend("topleft",cex=0.8,pch=c(19,19,NA,NA),lty=c(NA,NA,3,3),bty="n",y.intersp=0.4,
+             c(plate_labels,"Neg","Blank"),col=c(cols1[1:length(data)],"red","black"),seg.len=1)
+    } else {
+      legend("topleft",cex=0.5,pch=19,bty="n",y.intersp=0.4,
+             c(plate_labels),col=c(cols1[1:length(data)]),seg.len=1)   
+    }
+  }
+}
+
+plot.std.curve3_single_ag <- function(data,antigen,dilutions,negs=NULL,blanks=NULL,plate_labels=NULL) {
+  curves <- list()
+  max.set <- c()
+  plate_labels_def <- c()
+  
+  for (j in 1:length(data)){
+    
+    if ((antigen %in% colnames(data[[j]]))==F) {
+      print(paste0(" '",antigen,"'"," does not exist in dataset ",j," - check spelling "))
+      next
+    } else {
+      curves[[j]] <- data[[j]][,which(names(data[[j]])==antigen)]
+      max.set <- c(max.set,curves[[j]])
+      plate_labels_def <- c(plate_labels_def,paste0("plate",j))
+    }
+    
+  }
+  
+  max.set <- max.set[is.finite(max.set)]
+  max <- max(max.set)
+  
+  conc <- sapply(strsplit(dilutions, split = "/"),function(x) as.numeric(x[1]) / as.numeric(x[2]))
+  cols1 <- c("green4","blue2","red3","purple3","goldenrod2")
+  # cols1 <- brewer.pal(length(data),"Paired")
+  
+  # plots for viewing in R #
+  
+  plot(log(conc),curves[[1]], type="o", pch=19, col=cols1[[1]],
+       ylab="MFI", xlab="Dilution factor",axes=F,bty='L', 
+       ylim=c(0,max*1.2), xlim=c(min(log(conc)),max(log(conc))+1),
+       main=paste(antigen,"Standard curve", sep='\n'),cex.main=0.9 )
+  axis(1, at=c(log(conc),max(log(conc))+1) , labels=c(dilutions,""), cex.axis=0.8)
+  axis(2, cex.axis=0.8)
+  if (is.null(blanks)==F) abline(h=mean(blanks[,antigen]),lty=3,lwd=1.5)
+  if (is.null(negs)==F) abline(h=mean(negs[,antigen]),col="red",lty=3,lwd=1.5)
+  
+  for (j in 2:length(data)) { lines(log(conc),curves[[j]],type="o",col=cols1[[j]],pch=19) }
+  
+  if (length(plate_labels)==0) { 
+    legend("topleft",cex=0.8,pch=19,bty="n",y.intersp=0.4,plate_labels_def,col=cols1[1:length(data)]) 
+  } else if(is.null(negs)==F&is.null(blanks)==F) {
+    legend("topleft",cex=0.8,pch=c(19,19,NA,NA),lty=c(NA,NA,3,3),bty="n",y.intersp=0.4,
+           c(plate_labels,"Neg","Blank"),col=c(cols1[1:length(data)],"red","black"),seg.len=1)
+  } else {
+    legend("topleft",pch=19,bty="n",
+           c(plate_labels),col=c(cols1[1:length(data)]))   
+  }
+}
+
+
+
+# "cutoff" function
+  # calculates seropositivity cutoff based on finite mixture model using both raw MFI and log transformed MFI using normalmixEM
 
 cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_label=NULL,no_sd=2,print=F) {
   
@@ -1612,9 +2087,9 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
       blank.data <- blanks[,i]
       blank.mean <- mean(blank.data)
     }
-     
+    
     labels1 <- as.numeric(c(10,100,1000,10000,100000))
-
+    
     print("MFI")
     fit <- normalmixEM(na.omit(plot.data),2)
     
@@ -1671,8 +2146,8 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
     if(is.null(neg_label)==F&is.null(blank_label)==F) {
       
       legend("topleft",c(paste0("cutoff (MFI): ",round(cut,0)),paste0("neg ctrls: ",round(neg.mean,0)),
-                        paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
-           col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
+                         paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
+             col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
     } else {
       
       legend("topleft",paste0("cutoff (MFI): ",round(cut,0)),lty=1,col="red",cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5,text.col="red")
@@ -1691,10 +2166,10 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
     lines(log(plot_x),gauss2b,col="dodgerblue4")
     
     if(is.null(neg_label)==F&is.null(blank_label)==F) {
-    
+      
       legend("topleft",c(paste0("cutoff (MFI): ",round(exp(log_cut),0)),paste0("neg ctrls: ",round(neg.mean,0)),
-      paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
-      col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
+                         paste0("background: ",round(blank.mean,0))),lty=c(1,1,1),
+             col=c("red","springgreen4","darkgrey"),cex=0.9,bty="n",y.intersp=0.2,x.intersp=0.2,seg.len=0.5)
       
     } else {
       
@@ -1711,18 +2186,17 @@ cutoff <- function (data,breaks=20,ag_list,neg_label=NULL,std_label=NULL,blank_l
   
 }
 
-##########################
-#### "seropos" function ##
-##########################
-# Using the cutoff values calculated in cutoff function
-# Assigns seropositivity values for all antigens and adds to an existing dataframe
+
+# "seropos" function
+  # Using the cutoff values calculated in cutoff function
+  # Assigns seropositivity values for all antigens and adds to an existing dataframe
 
 seropos <- function(data,cutoffs,ag_list) {
   
   new_data <- data
   
   for (i in ag_list) {
-  
+    
     var_new1 <- paste0(i,"_pos") 
     #var_new2 <- paste0(i,"_poslog") 
     
@@ -1733,7 +2207,7 @@ seropos <- function(data,cutoffs,ag_list) {
     #new_data[,var_new2] <- NA
     #new_data[,var_new2][new_data[,i]>=cutoffs[[2]][[i]]]  <- 1
     #new_data[,var_new2][new_data[,i]<cutoffs[[2]][[i]]]  <- 0
-  
+    
   }
   
   return(new_data)
